@@ -18,6 +18,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements-dev.txt
+          pip install -e .
           pip install -e sdk/
 
       - name: Lint

@@ -75,6 +75,7 @@ stub without touching the router or the API.
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
+pip install -e .          # the axiomn package itself
 pip install -e sdk/       # the SDK client, used by sdk/tests
 
 # run the full test suite (server + SDK)
