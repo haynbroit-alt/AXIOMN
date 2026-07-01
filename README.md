@@ -150,6 +150,25 @@ multilingual model on first use. It's verified in
 form", its French translation, and its Japanese translation all land in
 the same category — by meaning, with no translation step.
 
+### Operations: auth, rate limiting, persistence
+
+All three are opt-in and off by default, so local dev and the existing
+test suite need zero setup. Nothing below is enabled unless you set the
+corresponding environment variable.
+
+| Env var | Default | Effect |
+|---|---|---|
+| `AXIOMN_API_KEYS` | unset (auth disabled) | Comma-separated list of accepted keys. When set, `POST /intent` requires a matching `X-API-Key` header (401 otherwise). **Unset means the endpoint is wide open** — set this before exposing AXIOMN beyond your own machine. |
+| `AXIOMN_RATE_LIMIT_PER_MINUTE` | `60` | Max requests per client (per API key, or per IP if no key) per rolling 60s window. In-memory only — resets on restart, and doesn't share state across multiple server processes. |
+| `AXIOMN_ROUTER_STATE_PATH` | unset (no persistence) | Path to a JSON file where the Router's trust scores are saved after every `record_outcome()` and reloaded on startup. Unset means every restart forgets what the Router has learned. |
+
+```bash
+AXIOMN_API_KEYS=my-secret-key AXIOMN_ROUTER_STATE_PATH=./router_state.json uvicorn axiomn.api.main:app
+```
+
+CI (`.github/workflows/ci.yml`) runs `ruff check` and the full test suite
+on every push and pull request.
+
 ### Mobile client
 
 `android/` has a push-to-talk Android MVP (mic button → speech-to-text →

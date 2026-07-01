@@ -1,7 +1,8 @@
 """AXIOMN API: a single endpoint that runs the full Intent -> Route -> Execute -> Act pipeline."""
+import os
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -9,6 +10,7 @@ from ..action.engine import ActionEngine
 from ..execution.engine import ExecutionEngine
 from ..intent.engine import IntentEngine
 from ..router.router import Router
+from .security import RateLimiter, require_api_key
 
 app = FastAPI(
     title="AXIOMN",
@@ -17,9 +19,10 @@ app = FastAPI(
 )
 
 intent_engine = IntentEngine()
-router = Router()
+router = Router(persistence_path=os.environ.get("AXIOMN_ROUTER_STATE_PATH"))
 execution_engine = ExecutionEngine(router=router)
 action_engine = ActionEngine()
+rate_limiter = RateLimiter(max_requests=int(os.environ.get("AXIOMN_RATE_LIMIT_PER_MINUTE", "60")))
 
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.is_dir():
@@ -49,12 +52,26 @@ class IntentResponse(BaseModel):
     action: ActionResponse
 
 
+def _client_id(request: Request, x_api_key: str | None = Header(default=None)) -> str:
+    if x_api_key:
+        return x_api_key
+    return request.client.host if request.client else "unknown"
+
+
+def _enforce_rate_limit(client_id: str = Depends(_client_id)) -> None:
+    rate_limiter.check(client_id)
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/intent", response_model=IntentResponse)
+@app.post(
+    "/intent",
+    response_model=IntentResponse,
+    dependencies=[Depends(require_api_key), Depends(_enforce_rate_limit)],
+)
 def handle_intent(payload: IntentRequest) -> IntentResponse:
     intent = intent_engine.classify(payload.text)
     route = router.route(intent)

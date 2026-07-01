@@ -6,3 +6,4 @@ __pycache__/
 build/
 .gradle/
 local.properties
+router_state.json

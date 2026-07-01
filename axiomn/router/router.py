@@ -11,8 +11,10 @@ fit into — rather than a black box, which keeps it debuggable while still
 being genuinely dynamic: repeated failures on a route lower its score
 until the router stops choosing it.
 """
+import json
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 
 from ..intent.schema import Intent, IntentCategory
 
@@ -67,10 +69,14 @@ class Router:
         profiles: list[RouteProfile] | None = None,
         cost_weight: float = 1.0,
         latency_weight: float = 0.3,
+        persistence_path: str | None = None,
     ):
         self.profiles = profiles or _default_profiles()
         self.cost_weight = cost_weight
         self.latency_weight = latency_weight
+        self.persistence_path = persistence_path
+        if self.persistence_path:
+            self._load_trust_scores()
 
     def route(self, intent: Intent) -> Route:
         feasible = [p for p in self.profiles if p.capability >= intent.difficulty]
@@ -99,4 +105,22 @@ class Router:
             if profile.route == route:
                 target = 1.0 if success else 0.0
                 profile.trust_score = (1 - decay) * profile.trust_score + decay * target
+                if self.persistence_path:
+                    self._save_trust_scores()
                 return
+
+    def _load_trust_scores(self) -> None:
+        path = Path(self.persistence_path)
+        if not path.exists():
+            return
+        try:
+            saved = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return
+        for profile in self.profiles:
+            if profile.route.value in saved:
+                profile.trust_score = saved[profile.route.value]
+
+    def _save_trust_scores(self) -> None:
+        data = {profile.route.value: profile.trust_score for profile in self.profiles}
+        Path(self.persistence_path).write_text(json.dumps(data))
