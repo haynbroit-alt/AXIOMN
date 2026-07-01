@@ -2,8 +2,11 @@ from axiomn.intent.schema import Intent, IntentCategory
 from axiomn.router.router import Route, RouteProfile, Router
 
 
-def _intent(difficulty: int, category: IntentCategory = IntentCategory.LEARN) -> Intent:
-    return Intent(text="x", category=category, topic="x", language="en", difficulty=difficulty, confidence=0.5)
+def _intent(difficulty: int, category: IntentCategory = IntentCategory.LEARN, ambiguity: float = 0.0) -> Intent:
+    return Intent(
+        text="x", category=category, topic="x", language="en",
+        difficulty=difficulty, confidence=0.5, ambiguity=ambiguity,
+    )
 
 
 def test_low_difficulty_routes_to_local_ai():
@@ -42,3 +45,15 @@ def test_custom_profiles_can_be_injected():
         RouteProfile(route=Route.CLOUD_AI, capability=10, cost_per_call=0.0, latency_ms=1, trust_score=1.0),
     ])
     assert router.route(_intent(2)) == Route.CLOUD_AI
+
+
+def test_high_ambiguity_escalates_a_cloud_bound_request_to_human():
+    # Same difficulty as test_medium_difficulty_routes_to_cloud_ai, but this
+    # time the classifier couldn't tell two categories apart — a human can
+    # just ask, so escalation should win even though cloud_ai is cheaper
+    # and faster.
+    assert Router().route(_intent(5, ambiguity=0.9)) == Route.HUMAN_QUEUE
+
+
+def test_low_ambiguity_does_not_change_medium_difficulty_routing():
+    assert Router().route(_intent(5, ambiguity=0.1)) == Route.CLOUD_AI

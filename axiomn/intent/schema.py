@@ -20,3 +20,4 @@ class Intent:
     language: str
     difficulty: int  # 1 (trivial) .. 10 (expert-only)
     confidence: float  # 0.0 .. 1.0
+    ambiguity: float = 0.0  # 0.0 (crisp) .. 1.0 (top two categories are effectively tied)

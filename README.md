@@ -21,11 +21,16 @@ the seed a real "intent OS" would be built on.
 text/voice input
       |
       v
- Intent Engine    -> classifies category, topic, language, difficulty
-      |               (pluggable classifier: keyword heuristic or semantic embeddings)
+ Intent Engine    -> classifies category, topic, language, difficulty,
+      |               confidence, and ambiguity (pluggable classifier:
+      |               keyword heuristic or semantic embeddings)
       v
     Router         -> scores every route by capability fit, cost, latency,
-      |               trust, and category affinity — not a fixed threshold
+      |               trust, category affinity, and ambiguity — not a
+      |               fixed threshold. A confident-but-ambiguous request
+      |               (two categories effectively tied) can outrank a
+      |               cheaper route even at moderate difficulty, because
+      |               a human can just ask a clarifying question.
       v
  Execution Layer   -> asks the Tool Registry for the best tool for that route,
       |               runs it, times it, and reports success/failure back
@@ -43,10 +48,10 @@ contract:
 
 | Module | Responsibility |
 |---|---|
-| `axiomn/intent/engine.py` | `classify(text) -> Intent` (category, topic, language, difficulty, confidence) |
-| `axiomn/intent/classifiers.py` | `HeuristicIntentClassifier`: keyword-overlap, offline, default |
-| `axiomn/intent/embedding.py` | `SemanticIntentClassifier`: nearest-neighbor in embedding space — matches by meaning, works across languages without translation (optional, see below) |
-| `axiomn/router/router.py` | `Router.route(intent) -> Route`, a cost/latency/trust-scoring policy over `RouteProfile`s; `record_outcome()` updates trust from real results |
+| `axiomn/intent/engine.py` | `classify(text) -> Intent` (category, topic, language, difficulty, confidence, ambiguity) |
+| `axiomn/intent/classifiers.py` | `HeuristicIntentClassifier`: keyword-overlap, offline, default. Returns a `Classification` (category, confidence, *and* ambiguity — the gap between the winning category and the runner-up) |
+| `axiomn/intent/embedding.py` | `SemanticIntentClassifier`: nearest-neighbor in embedding space — matches by meaning, works across languages without translation (optional, see below); ambiguity comes from the gap between the best and second-best category's similarity |
+| `axiomn/router/router.py` | `Router.route(intent) -> Route`, a cost/latency/trust/ambiguity-scoring policy over `RouteProfile`s; `record_outcome()` updates trust from real results |
 | `axiomn/models/tools.py` | `ToolRegistry`: named, tagged tools per route, so a route isn't tied to exactly one backend |
 | `axiomn/execution/engine.py` | `ExecutionEngine.execute(route, intent) -> ExecutionOutcome`, picks a tool, times it, closes the feedback loop to the Router |
 | `axiomn/api/main.py` | FastAPI app wiring the pipeline behind `POST /intent`, plus a static demo at `/ui/` |

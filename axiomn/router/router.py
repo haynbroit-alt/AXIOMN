@@ -1,13 +1,15 @@
 """The Router: a cost/latency/trust-aware policy engine, not a fixed threshold.
 
 Each route is described by a `RouteProfile`: how hard a request it can
-reliably handle (`capability`), what it costs, how long it takes, and a
-`trust_score` that is updated from real outcomes via `record_outcome`. This
-is a transparent, auditable scoring function — the same shape a
-reinforcement-learned policy would eventually fit into — rather than a
-black box, which keeps it debuggable while still being genuinely dynamic:
-repeated failures on a route lower its score until the router stops
-choosing it.
+reliably handle (`capability`), what it costs, how long it takes, a
+`trust_score` that is updated from real outcomes via `record_outcome`, and
+an `ambiguity_weight` describing how well it copes when the category
+itself is a toss-up (see `Intent.ambiguity`, computed in
+`intent/classifiers.py`). This is a transparent, auditable scoring
+function — the same shape a reinforcement-learned policy would eventually
+fit into — rather than a black box, which keeps it debuggable while still
+being genuinely dynamic: repeated failures on a route lower its score
+until the router stops choosing it.
 """
 from dataclasses import dataclass, field
 from enum import Enum
@@ -29,12 +31,24 @@ class RouteProfile:
     latency_ms: float  # expected latency
     trust_score: float = 0.8  # 0..1, updated over time by record_outcome
     affinity: dict[IntentCategory, float] = field(default_factory=dict)
+    ambiguity_weight: float = 0.0  # how much this route benefits from Intent.ambiguity
 
 
 def _default_profiles() -> list[RouteProfile]:
     return [
-        RouteProfile(route=Route.LOCAL_AI, capability=4, cost_per_call=0.0, latency_ms=50, trust_score=0.85),
-        RouteProfile(route=Route.CLOUD_AI, capability=8, cost_per_call=0.02, latency_ms=800, trust_score=0.9),
+        # A keyword/heuristic backend can't reason about a toss-up between
+        # two categories, so ambiguity earns it nothing.
+        RouteProfile(
+            route=Route.LOCAL_AI, capability=4, cost_per_call=0.0, latency_ms=50, trust_score=0.85,
+        ),
+        # A larger model can weigh competing interpretations somewhat better
+        # than a keyword match, but it's still guessing.
+        RouteProfile(
+            route=Route.CLOUD_AI, capability=8, cost_per_call=0.02, latency_ms=800, trust_score=0.9,
+            ambiguity_weight=0.5,
+        ),
+        # A human can just ask a clarifying question — genuinely ambiguous
+        # requests should lean here regardless of difficulty.
         RouteProfile(
             route=Route.HUMAN_QUEUE,
             capability=10,
@@ -42,6 +56,7 @@ def _default_profiles() -> list[RouteProfile]:
             latency_ms=600_000,
             trust_score=0.97,
             affinity={IntentCategory.CONNECT: 5.0},
+            ambiguity_weight=5.0,
         ),
     ]
 
@@ -67,11 +82,13 @@ class Router:
 
     def _score(self, profile: RouteProfile, intent: Intent, max_cost: float, max_latency: float) -> float:
         affinity_bonus = profile.affinity.get(intent.category, 0.0)
+        ambiguity_bonus = profile.ambiguity_weight * intent.ambiguity
         cost_norm = profile.cost_per_call / max_cost
         latency_norm = profile.latency_ms / max_latency
         return (
             profile.trust_score * intent.confidence
             + affinity_bonus
+            + ambiguity_bonus
             - self.cost_weight * cost_norm
             - self.latency_weight * latency_norm
         )

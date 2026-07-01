@@ -39,12 +39,22 @@ def test_cosine_similarity_zero_vector_is_zero():
 
 def test_classifies_by_nearest_example_not_exact_keyword():
     classifier = SemanticIntentClassifier(embedder=HashingEmbedder())
-    category, confidence = classifier.classify("explain how black holes form in space")
-    assert category == IntentCategory.LEARN
-    assert 0.0 <= confidence <= 1.0
+    classification = classifier.classify("explain how black holes form in space")
+    assert classification.category == IntentCategory.LEARN
+    assert 0.0 <= classification.confidence <= 1.0
+    assert 0.0 <= classification.ambiguity <= 1.0
 
 
 def test_classifies_solve_style_request():
     classifier = SemanticIntentClassifier(embedder=HashingEmbedder())
-    category, _ = classifier.classify("debug this failing test for me")
-    assert category == IntentCategory.SOLVE
+    classification = classifier.classify("debug this failing test for me")
+    assert classification.category == IntentCategory.SOLVE
+
+
+def test_identical_text_to_a_canonical_example_is_not_maximally_ambiguous():
+    # This exact sentence is one of SOLVE's canonical examples (similarity
+    # 1.0), so it shouldn't register as a toss-up between categories.
+    classifier = SemanticIntentClassifier(embedder=HashingEmbedder())
+    classification = classifier.classify("fix this bug in my code")
+    assert classification.category == IntentCategory.SOLVE
+    assert classification.ambiguity < 1.0

@@ -21,10 +21,10 @@ pytestmark = pytest.mark.skipif(
 def test_cross_lingual_requests_land_in_the_same_category():
     classifier = SemanticIntentClassifier(embedder=SentenceTransformerEmbedder())
 
-    english, _ = classifier.classify("explain how black holes form")
-    french, _ = classifier.classify("explique comment se forment les trous noirs")
-    japanese, _ = classifier.classify("ブラックホールがどのように形成されるか説明してください")
+    english = classifier.classify("explain how black holes form")
+    french = classifier.classify("explique comment se forment les trous noirs")
+    japanese = classifier.classify("ブラックホールがどのように形成されるか説明してください")
 
-    assert english == IntentCategory.LEARN
-    assert french == IntentCategory.LEARN
-    assert japanese == IntentCategory.LEARN
+    assert english.category == IntentCategory.LEARN
+    assert french.category == IntentCategory.LEARN
+    assert japanese.category == IntentCategory.LEARN
