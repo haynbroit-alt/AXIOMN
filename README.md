@@ -131,12 +131,21 @@ multilingual model on first use. It's verified in
 form", its French translation, and its Japanese translation all land in
 the same category — by meaning, with no translation step.
 
+### Mobile client
+
+`android/` has a push-to-talk Android MVP (mic button → speech-to-text →
+this API → spoken reply) that talks to the exact schema above. See
+`android/README.md` — it's unverified in this environment (no Android SDK
+available here to build it) and deliberately doesn't attempt a wake-word
+or background-service "always listening" mode; details on both in that
+file.
+
 ## What's deliberately out of scope here
 
-This is a backend pipeline, an SDK, and a demo UI — not the "OS layer"
-described in the long-form vision behind AXIOMN (Android/iOS assistant
-replacement, multi-device orchestration, a live human expert network,
-a real cloud LLM backend). Those are real, larger efforts that build on
-top of the same `Intent -> Route -> Execute` contract established here;
-they're not attempted in this repository because they can't be built
-*and verified* in this environment.
+This is a backend pipeline, an SDK, a demo UI, and a mobile client — not
+the "OS layer" described in the long-form vision behind AXIOMN (iOS
+assistant replacement, multi-device orchestration, a live human expert
+network, a real cloud LLM backend). Those are real, larger efforts that
+build on top of the same `Intent -> Route -> Execute` contract
+established here; they're not attempted in this repository because they
+can't be built *and verified* in this environment.

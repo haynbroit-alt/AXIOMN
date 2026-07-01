@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="center_horizontal"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="#E6E9EF"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/serverUrlInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textUri"
+            android:hint="@string/server_url_hint"
+            android:text="http://10.0.2.2:8000"
+            android:textColor="#E6E9EF"
+            android:textColorHint="#6b7284"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="24dp" />
+
+        <Button
+            android:id="@+id/micButton"
+            android:layout_width="180dp"
+            android:layout_height="180dp"
+            android:text="@string/mic_button_idle"
+            android:textAllCaps="false"
+            android:backgroundTint="#5B8CFF"
+            android:textColor="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/transcriptView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:textStyle="italic"
+            android:textColor="#9aa3b8"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/answerView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textSize="17sp"
+            android:textColor="#E6E9EF"
+            android:text="" />
+
+        <TextView
+            android:id="@+id/thoughtView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:textSize="13sp"
+            android:fontFamily="monospace"
+            android:textColor="#7d8496"
+            android:text="" />
+
+    </LinearLayout>
+</ScrollView>

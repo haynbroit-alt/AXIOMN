@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AxiomnAssistant" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#5B8CFF</item>
+        <item name="colorPrimaryDark">#0B0D12</item>
+        <item name="colorAccent">#5B8CFF</item>
+        <item name="android:windowBackground">#0B0D12</item>
+    </style>
+</resources>
