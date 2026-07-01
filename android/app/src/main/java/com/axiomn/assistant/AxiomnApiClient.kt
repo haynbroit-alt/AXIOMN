@@ -8,6 +8,12 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
 
+/** Mirrors the AXIOMN action payload (see axiomn/action/schema.py). */
+data class AxiomnAction(
+    val type: String,
+    val payload: JSONObject,
+)
+
 /** Mirrors the AXIOMN /intent response schema (see axiomn/api/main.py). */
 data class AxiomnResult(
     val intent: String,
@@ -15,10 +21,12 @@ data class AxiomnResult(
     val language: String,
     val difficulty: Int,
     val confidence: Double,
+    val ambiguity: Double,
     val route: String,
     val tool: String,
     val result: String,
     val executionTimeMs: Double,
+    val action: AxiomnAction,
 )
 
 /**
@@ -56,16 +64,19 @@ class AxiomnApiClient(private val baseUrl: String) {
             }
 
             val json = JSONObject(body)
+            val actionJson = json.getJSONObject("action")
             return AxiomnResult(
                 intent = json.getString("intent"),
                 topic = json.getString("topic"),
                 language = json.getString("language"),
                 difficulty = json.getInt("difficulty"),
                 confidence = json.getDouble("confidence"),
+                ambiguity = json.getDouble("ambiguity"),
                 route = json.getString("route"),
                 tool = json.getString("tool"),
                 result = json.getString("result"),
                 executionTimeMs = json.getDouble("execution_time_ms"),
+                action = AxiomnAction(type = actionJson.getString("type"), payload = actionJson.getJSONObject("payload")),
             )
         } finally {
             connection.disconnect()

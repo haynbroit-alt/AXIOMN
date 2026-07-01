@@ -10,10 +10,10 @@ not an assistant, an app, or a single model: it's the layer that decides
 of being the answer itself.
 
 This repository is a real, testable slice of that idea: a full
-`Intent Engine -> Router -> Execution Layer` pipeline, a Python SDK, and a
-small web demo, all backed by a test suite that actually exercises the
-claims below. It doesn't claim to replace Siri or Google Assistant; it's
-the seed a real "intent OS" would be built on.
+`Intent Engine -> Router -> Execution Layer -> Action Engine` pipeline, a
+Python SDK, and a small web demo, all backed by a test suite that actually
+exercises the claims below. It doesn't claim to replace Siri or Google
+Assistant; it's the seed a real "intent OS" would be built on.
 
 ## Architecture
 
@@ -40,7 +40,13 @@ text/voice input
       +-- human_queue   escalation to a human/expert network (stub, pluggable)
       |
       v
-   result (+ which tool ran, and how long it took)
+  Action Engine     -> a raw text result isn't enough for a client to act on;
+      |               this decides what to *do* with it: speak it, copy it,
+      |               open a link, schedule it — or, if the route was
+      |               human_queue, surface "still working on it" instead of
+      |               going silent, since that answer isn't ready yet
+      v
+   result + action (+ which tool ran, and how long it took)
 ```
 
 Each layer is a small, independently testable component with a narrow
@@ -54,6 +60,7 @@ contract:
 | `axiomn/router/router.py` | `Router.route(intent) -> Route`, a cost/latency/trust/ambiguity-scoring policy over `RouteProfile`s; `record_outcome()` updates trust from real results |
 | `axiomn/models/tools.py` | `ToolRegistry`: named, tagged tools per route, so a route isn't tied to exactly one backend |
 | `axiomn/execution/engine.py` | `ExecutionEngine.execute(route, intent) -> ExecutionOutcome`, picks a tool, times it, closes the feedback loop to the Router |
+| `axiomn/action/engine.py` | `ActionEngine.decide(intent, route, result_text) -> Action`: `voice_reply`, `copy_to_clipboard`, `open_url`, `schedule_task`, or `await_human` (always wins when `route == human_queue`, regardless of category — the async escalation isn't done yet) |
 | `axiomn/api/main.py` | FastAPI app wiring the pipeline behind `POST /intent`, plus a static demo at `/ui/` |
 | `sdk/axiomn_sdk/` | Standalone Python client package (`pip install -e sdk/`) — depends only on `httpx`, not on the server |
 
@@ -94,12 +101,19 @@ curl -X POST http://127.0.0.1:8000/intent \
   "language": "fr",
   "difficulty": 1,
   "confidence": 0.8,
+  "ambiguity": 0.0,
   "route": "local_ai",
   "tool": "local_heuristic",
   "result": "[local] learn answer for: Explique-moi comment fonctionnent trous noirs",
-  "execution_time_ms": 0.01
+  "execution_time_ms": 0.01,
+  "action": { "type": "voice_reply", "payload": { "text": "[local] learn answer for: ..." } }
 }
 ```
+
+A request that escalates to a human (e.g. `route == "human_queue"`) gets
+`"action": {"type": "await_human", ...}` instead — the client's cue that
+there's no answer yet, rather than silently treating the queued message
+as the final reply.
 
 ### SDK usage
 

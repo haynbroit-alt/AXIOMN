@@ -104,13 +104,16 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
 
-      answerEl.textContent = data.result;
+      answerEl.textContent = data.action.type === "await_human"
+        ? `⏳ ${data.result}`
+        : data.result;
       answerEl.style.display = "block";
 
       thoughtEl.innerHTML = `
-        <div><b>Intent:</b> ${data.intent} (confidence ${data.confidence})</div>
+        <div><b>Intent:</b> ${data.intent} (confidence ${data.confidence}, ambiguity ${data.ambiguity})</div>
         <div><b>Language:</b> ${data.language} &middot; <b>Difficulty:</b> ${data.difficulty}/10</div>
         <div><b>Route:</b> ${data.route} &middot; <b>Tool:</b> ${data.tool}</div>
+        <div><b>Action:</b> ${data.action.type}</div>
         <div><b>Execution time:</b> ${data.execution_time_ms} ms</div>
       `;
       thoughtEl.style.display = "block";

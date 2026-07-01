@@ -154,14 +154,21 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             override fun onSuccess(result: AxiomnResult) {
                 runOnUiThread {
                     micButton.text = getString(R.string.mic_button_idle)
-                    answerView.text = result.result
+                    // await_human means there is no answer yet — a person is
+                    // handling this — so show that instead of treating the
+                    // queued message as if it were the final spoken reply.
+                    val isAwaitingHuman = result.action.type == "await_human"
+                    answerView.text = if (isAwaitingHuman) "⏳ ${result.result}" else result.result
                     thoughtView.text = buildString {
-                        append("intent: ${result.intent}  (confidence ${result.confidence})\n")
+                        append("intent: ${result.intent}  (confidence ${result.confidence}, ambiguity ${result.ambiguity})\n")
                         append("language: ${result.language}  difficulty: ${result.difficulty}/10\n")
                         append("route: ${result.route}  tool: ${result.tool}\n")
+                        append("action: ${result.action.type}\n")
                         append("execution_time_ms: ${result.executionTimeMs}")
                     }
-                    speak(result.result)
+                    if (!isAwaitingHuman) {
+                        speak(result.result)
+                    }
                 }
             }
 
