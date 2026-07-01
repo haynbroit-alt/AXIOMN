@@ -28,14 +28,15 @@ class IntentEngine:
 
     def classify(self, text: str) -> Intent:
         normalized = text.strip().lower()
-        category, confidence = self._classifier.classify(normalized)
+        classification = self._classifier.classify(normalized)
         return Intent(
             text=text,
-            category=category,
+            category=classification.category,
             topic=self._extract_topic(text),
             language=self._detect_language(text),
             difficulty=self._estimate_difficulty(normalized),
-            confidence=confidence,
+            confidence=classification.confidence,
+            ambiguity=classification.ambiguity,
         )
 
     def _estimate_difficulty(self, normalized: str) -> int:

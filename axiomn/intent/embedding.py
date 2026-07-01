@@ -16,6 +16,7 @@ a hosted embeddings API, or a test double can all be plugged in.
 import math
 from typing import Protocol, Sequence
 
+from .classifiers import Classification
 from .schema import IntentCategory
 
 
@@ -90,17 +91,26 @@ class SemanticIntentClassifier:
                 self._categories.append(category)
                 self._example_vectors.append(vector)
 
-    def classify(self, normalized_text: str) -> tuple[IntentCategory, float]:
+    def classify(self, normalized_text: str) -> Classification:
         [vector] = self._embedder.encode([normalized_text])
-        best_category = IntentCategory.UNKNOWN
-        best_score = -1.0
+
+        best_per_category: dict[IntentCategory, float] = {}
         for category, example_vector in zip(self._categories, self._example_vectors):
             score = cosine_similarity(vector, example_vector)
-            if score > best_score:
-                best_score = score
-                best_category = category
-        confidence = max(0.0, min(1.0, (best_score + 1) / 2))
-        return best_category, round(confidence, 2)
+            if score > best_per_category.get(category, -1.0):
+                best_per_category[category] = score
+
+        ranked = sorted(best_per_category.values(), reverse=True)
+        top_sim, runner_up_sim = ranked[0], ranked[1]
+        best_category = max(best_per_category, key=best_per_category.get)
+
+        confidence = round(max(0.0, min(1.0, (top_sim + 1) / 2)), 2)
+        # A small gap between the best and second-best category means the
+        # request could plausibly belong to either — that's ambiguity,
+        # distinct from confidence (which only reflects the winner's
+        # absolute similarity).
+        ambiguity = round(max(0.0, min(1.0, 1.0 - (top_sim - runner_up_sim))), 2)
+        return Classification(category=best_category, confidence=confidence, ambiguity=ambiguity)
 
 
 class SentenceTransformerEmbedder:

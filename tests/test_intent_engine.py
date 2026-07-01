@@ -1,3 +1,4 @@
+from axiomn.intent.classifiers import Classification
 from axiomn.intent.engine import IntentEngine
 from axiomn.intent.schema import IntentCategory
 
@@ -35,8 +36,9 @@ def test_unknown_intent_has_low_confidence():
 def test_engine_delegates_category_to_injected_classifier():
     class FakeClassifier:
         def classify(self, normalized_text):
-            return IntentCategory.CREATE, 0.99
+            return Classification(category=IntentCategory.CREATE, confidence=0.99, ambiguity=0.3)
 
     intent = IntentEngine(classifier=FakeClassifier()).classify("anything at all")
     assert intent.category == IntentCategory.CREATE
     assert intent.confidence == 0.99
+    assert intent.ambiguity == 0.3

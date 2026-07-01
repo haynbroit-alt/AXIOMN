@@ -13,16 +13,28 @@ import httpx
 
 
 @dataclass
+class Action:
+    type: str
+    payload: dict
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Action":
+        return cls(type=data["type"], payload=data["payload"])
+
+
+@dataclass
 class IntentResult:
     intent: str
     topic: str
     language: str
     difficulty: int
     confidence: float
+    ambiguity: float
     route: str
     tool: str
     result: str
     execution_time_ms: float
+    action: Action
 
     @classmethod
     def from_dict(cls, data: dict) -> "IntentResult":
@@ -32,10 +44,12 @@ class IntentResult:
             language=data["language"],
             difficulty=data["difficulty"],
             confidence=data["confidence"],
+            ambiguity=data["ambiguity"],
             route=data["route"],
             tool=data["tool"],
             result=data["result"],
             execution_time_ms=data["execution_time_ms"],
+            action=Action.from_dict(data["action"]),
         )
 
 
