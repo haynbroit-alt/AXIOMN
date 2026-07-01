@@ -30,3 +30,13 @@ def test_unknown_intent_has_low_confidence():
     intent = IntentEngine().classify("asdkj qweqw zxczxc")
     assert intent.category == IntentCategory.UNKNOWN
     assert intent.confidence < 0.5
+
+
+def test_engine_delegates_category_to_injected_classifier():
+    class FakeClassifier:
+        def classify(self, normalized_text):
+            return IntentCategory.CREATE, 0.99
+
+    intent = IntentEngine(classifier=FakeClassifier()).classify("anything at all")
+    assert intent.category == IntentCategory.CREATE
+    assert intent.confidence == 0.99

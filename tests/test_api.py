@@ -16,6 +16,8 @@ def test_intent_endpoint_returns_full_pipeline_result():
     assert data["intent"] == "learn"
     assert data["route"] in {"local_ai", "cloud_ai", "human_queue"}
     assert data["result"]
+    assert data["tool"]
+    assert data["execution_time_ms"] >= 0
 
 
 def test_intent_endpoint_rejects_missing_text():
