@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>AXIOMN</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0b0d12;
+    color: #e6e9ef;
+    display: flex;
+    justify-content: center;
+    padding: 48px 16px;
+  }
+  main { width: 100%; max-width: 640px; }
+  h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: 0.02em; margin-bottom: 4px; }
+  p.tagline { color: #8b92a5; margin-top: 0; margin-bottom: 28px; }
+  form { display: flex; gap: 8px; }
+  input[type="text"] {
+    flex: 1;
+    background: #151823;
+    border: 1px solid #2a2f3d;
+    color: #e6e9ef;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 1rem;
+  }
+  input[type="text"]:focus { outline: 2px solid #5b8cff; }
+  button {
+    background: #5b8cff;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0 20px;
+    font-size: 1rem;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #answer {
+    margin-top: 28px;
+    background: #151823;
+    border: 1px solid #2a2f3d;
+    border-radius: 10px;
+    padding: 18px;
+    display: none;
+    white-space: pre-wrap;
+    line-height: 1.5;
+  }
+  #thought {
+    margin-top: 14px;
+    display: none;
+    font-size: 0.85rem;
+    color: #9aa3b8;
+    border-left: 2px solid #2a2f3d;
+    padding-left: 12px;
+  }
+  #thought div { margin-bottom: 3px; }
+  #thought b { color: #d7dbe6; }
+  #error { margin-top: 20px; color: #ff6b6b; display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>AXIOMN</h1>
+  <p class="tagline">Ask anything. See how it decided to answer.</p>
+
+  <form id="ask-form">
+    <input id="text" type="text" placeholder="Explique-moi les trous noirs..." autocomplete="off" />
+    <button id="submit" type="submit">Ask</button>
+  </form>
+
+  <div id="answer"></div>
+  <div id="thought"></div>
+  <div id="error"></div>
+</main>
+
+<script>
+  const form = document.getElementById("ask-form");
+  const input = document.getElementById("text");
+  const submitBtn = document.getElementById("submit");
+  const answerEl = document.getElementById("answer");
+  const thoughtEl = document.getElementById("thought");
+  const errorEl = document.getElementById("error");
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+
+    submitBtn.disabled = true;
+    errorEl.style.display = "none";
+    answerEl.style.display = "none";
+    thoughtEl.style.display = "none";
+
+    try {
+      const response = await fetch("/intent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+
+      answerEl.textContent = data.result;
+      answerEl.style.display = "block";
+
+      thoughtEl.innerHTML = `
+        <div><b>Intent:</b> ${data.intent} (confidence ${data.confidence})</div>
+        <div><b>Language:</b> ${data.language} &middot; <b>Difficulty:</b> ${data.difficulty}/10</div>
+        <div><b>Route:</b> ${data.route} &middot; <b>Tool:</b> ${data.tool}</div>
+        <div><b>Execution time:</b> ${data.execution_time_ms} ms</div>
+      `;
+      thoughtEl.style.display = "block";
+    } catch (err) {
+      errorEl.textContent = "Something went wrong: " + err.message;
+      errorEl.style.display = "block";
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
