@@ -5,8 +5,19 @@ from axiomn.api.main import app
 client = TestClient(app)
 
 
-def test_health():
-    assert client.get("/health").json() == {"status": "ok"}
+def test_health_reports_status_and_serving_version():
+    data = client.get("/health").json()
+    assert data["status"] == "ok"
+    # The deploy-observability contract: health always names the build
+    # version actually serving, so "did the redeploy take?" is answerable
+    # from outside.
+    assert data["version"] == "0.2.1"
+
+
+def test_health_includes_image_ref_when_platform_provides_one(monkeypatch):
+    monkeypatch.setenv("FLY_IMAGE_REF", "registry.fly.io/axiomn:deployment-123")
+    data = client.get("/health").json()
+    assert data["build"] == "registry.fly.io/axiomn:deployment-123"
 
 
 def test_intent_endpoint_returns_full_pipeline_result():

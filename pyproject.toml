@@ -1,6 +1,6 @@
 [project]
 name = "axiomn"
-version = "0.2.0"
+version = "0.2.1"
 description = "AXIOMN: an open-source intent mediation runtime, and the Gateway built on it."
 requires-python = ">=3.10"
 dependencies = [

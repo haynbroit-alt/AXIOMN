@@ -34,7 +34,7 @@ from .security import RateLimiter, require_api_key
 app = FastAPI(
     title="AXIOMN",
     description="An open-source intent mediation runtime.",
-    version="0.2.0",
+    version="0.2.1",
 )
 
 intent_engine = IntentEngine()
@@ -99,7 +99,18 @@ api = APIRouter()
 
 @api.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    """Health plus deploy observability: which build is actually serving.
+
+    Debugging 'did the redeploy take?' from the outside is guesswork
+    without this — the page and schema look identical across builds.
+    `build` is the container image reference when the platform provides
+    one (e.g. Fly.io's FLY_IMAGE_REF), absent otherwise.
+    """
+    payload = {"status": "ok", "version": app.version}
+    image_ref = os.environ.get("FLY_IMAGE_REF")
+    if image_ref:
+        payload["build"] = image_ref
+    return payload
 
 
 @api.post(
