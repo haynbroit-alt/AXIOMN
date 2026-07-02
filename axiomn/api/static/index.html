@@ -69,6 +69,8 @@
 
   <form id="ask-form">
     <input id="text" type="text" placeholder="Explique-moi les trous noirs..." autocomplete="off" />
+    <button id="mic" type="button" title="Parler au lieu de taper" aria-label="Voice input"
+            style="background:#151823;border:1px solid #2a2f3d;border-radius:8px;font-size:1rem;padding:0 14px;cursor:pointer;display:none;">🎤</button>
     <button id="submit" type="submit">Ask</button>
   </form>
   <input id="api-key" type="password" placeholder="API key (only if this server requires one)"
@@ -102,6 +104,38 @@
   }
 
   let pollTimer = null;
+
+  // --- Voice, like Siri: speak the request, hear the answer. ---
+  // Recognition: browser SpeechRecognition (feature-detected — the mic
+  // button only appears where it works). Synthesis: the Action Engine's
+  // decision made audible — voice_reply answers are spoken aloud.
+  const micBtn = document.getElementById("mic");
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (Recognition) {
+    micBtn.style.display = "block";
+    const recognizer = new Recognition();
+    recognizer.lang = navigator.language || "fr-FR";
+    recognizer.interimResults = false;
+    recognizer.onresult = (event) => {
+      input.value = event.results[0][0].transcript;
+      micBtn.textContent = "🎤";
+      form.requestSubmit();
+    };
+    recognizer.onerror = () => { micBtn.textContent = "🎤"; };
+    recognizer.onend = () => { micBtn.textContent = "🎤"; };
+    micBtn.addEventListener("click", () => {
+      micBtn.textContent = "🔴";
+      recognizer.start();
+    });
+  }
+
+  function speak(text, lang) {
+    if (!("speechSynthesis" in window) || !text) return;
+    const utterance = new SpeechSynthesisUtterance(text);
+    if (lang) utterance.lang = lang;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }
 
   // The async half of the human route: keep checking the ticket until a
   // human answers, then swap the "queued" placeholder for the real answer.
@@ -151,6 +185,9 @@
       answerEl.style.display = "block";
       if (awaiting && data.action.payload.status_url) {
         pollTicket(data.action.payload.status_url);
+      }
+      if (data.action.type === "voice_reply") {
+        speak(data.result, data.language);
       }
 
       const ticketLine = awaiting && data.action.payload.ticket_id

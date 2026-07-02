@@ -205,8 +205,15 @@ being hallucinated.
    requests still escalate.
 3. Build and verify the Android app on a real device; fix what the
    compiler and the round-trip reveal.
-4. Voice on the web demo (the browser's speech APIs) so the "any
-   modality" claim is demonstrable without installing an APK.
+4. ~~Voice on the web demo (the browser's speech APIs)~~ — ✅ done:
+   speech-in (mic button, feature-detected) and speech-out
+   (`voice_reply` answers are spoken — the Action Engine's decision
+   made audible), in both the demo and the embeddable widget.
+5. ~~Embeddable everywhere~~ — ✅ `/ui/widget.js`: one script tag gives
+   any website a voice-capable intent assistant backed by an AXIOMN
+   instance (Shadow DOM, CORS-enabled, key-gated). This is the
+   Adoption-stage growth mechanism: every embedding site distributes
+   AXIOMN.
 
 ## Traction — ⭐ → ⭐⭐⭐⭐⭐
 

@@ -217,6 +217,26 @@ benchmark (`tests/test_routing_benchmark.py`) runs with the suite: on a
 16-intent labeled corpus, the scored router resolves **100% vs 69%** for
 the fixed-threshold baseline it replaced.
 
+### Integrate AXIOMN into any website (voice included)
+
+One script tag gives any site a voice-capable intent assistant backed by
+your AXIOMN instance — the adoption mechanism of Analytics or Intercom,
+applied to intent mediation:
+
+```html
+<script src="https://axiomn.fly.dev/ui/widget.js" defer
+        data-axiomn-key="YOUR_KEY"></script>
+```
+
+A floating ⚡ orb appears; visitors type **or speak** their request
+(browser speech recognition), `voice_reply` answers are **spoken aloud**
+(the Action Engine's decision made audible), human escalations poll
+their ticket live, and every answer shows its route/model transparency
+line. Self-contained (Shadow DOM, no dependencies); `data-axiomn-url`
+overrides the API base. Cross-origin calls are CORS-enabled — access
+control stays with API keys; pin origins with `AXIOMN_CORS_ORIGINS` if
+desired. The `/ui/` demo has the same 🎤 voice controls.
+
 ### Mobile client
 
 `android/` has a push-to-talk Android MVP (mic button → speech-to-text →
