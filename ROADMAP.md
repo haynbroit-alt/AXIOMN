@@ -108,6 +108,10 @@ actually beats a naive baseline.
 2. Streaming: `ExecutionEngine` supports incremental results for the
    cloud route (token streaming), with the Action Engine deciding once
    the stream ends.
+   2b. Durable in-memory state: metrics and human-queue tickets reset on
+   every machine restart (and Fly auto-stop restarts machines on idle) —
+   they need the same persistence treatment router trust scores already
+   have, behind a storage interface (the existing SQLite roadmap item).
 3. Per-tenant router state: trust scores and outcomes keyed by API key,
    not global.
 4. ~~A routing-quality benchmark~~ — ✅ done
@@ -194,6 +198,11 @@ being hallucinated.
    operator API exist (`GET /queue`, `POST /queue/{id}/answer`); what's
    missing is a human actually watching it — even "forward new tickets
    to a Telegram/Discord channel, post the reply back" closes the loop.
+   The bleeding is stopped in the meantime: requests the keyword
+   heuristic can't read no longer dead-end there — the LLM fallback
+   classifier (`axiomn/intent/llm_fallback.py`) reads them by meaning
+   using the Gateway's cheapest model, so only genuine CONNECT/expert
+   requests still escalate.
 3. Build and verify the Android app on a real device; fix what the
    compiler and the round-trip reveal.
 4. Voice on the web demo (the browser's speech APIs) so the "any

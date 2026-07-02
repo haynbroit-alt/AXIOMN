@@ -20,6 +20,7 @@ from ..action.engine import ActionEngine
 from ..execution.engine import ExecutionEngine
 from ..gateway.handler import build_default_gateway
 from ..intent.engine import IntentEngine
+from ..intent.llm_fallback import build_default_fallback_classifier
 from ..metrics.collector import MetricsCollector
 from ..models.tools import default_registry
 from ..queue.engine import (
@@ -37,10 +38,20 @@ app = FastAPI(
     version="0.2.1",
 )
 
-intent_engine = IntentEngine()
 router = Router(persistence_path=os.environ.get("AXIOMN_ROUTER_STATE_PATH"))
 human_queue = HumanQueue()
 gateway = build_default_gateway()
+# When the keyword heuristic can't read a request (UNKNOWN / near-tie), a
+# cheap Gateway model classifies it by meaning instead of dead-ending it.
+# Fail-open: without provider keys the fallback resolves to the heuristic's
+# own result, so local/dev behavior is unchanged. AXIOMN_LLM_CLASSIFIER=0
+# disables the LLM call entirely.
+if os.environ.get("AXIOMN_LLM_CLASSIFIER", "1").lower() in ("0", "false"):
+    intent_engine = IntentEngine()
+else:
+    intent_engine = IntentEngine(
+        classifier=build_default_fallback_classifier(gateway.catalog, gateway.clients)
+    )
 execution_engine = ExecutionEngine(
     registry=default_registry(human_queue, cloud_handler=gateway), router=router
 )
