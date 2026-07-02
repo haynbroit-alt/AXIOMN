@@ -73,12 +73,15 @@ trust scores learned from real outcomes — compounds with usage; the
 models being routed to don't).
 
 **Path.**
-1. Write `VISION.md`: problem, thesis, why-now, wedge (first concrete
-   user + use case), moat, and explicit non-goals.
+1. ~~Write `VISION.md`: problem, thesis, why-now, wedge, moat, explicit
+   non-goals~~ — ✅ done, including the four invariants (intent as
+   single entry point, interchangeable capabilities, user-owned data,
+   observability/explainability) with an honest note on where the code
+   does and doesn't honor each one yet.
 2. Add a competitive positioning section: what Siri/Assistant, LLM
    chat apps, and agent frameworks each get wrong that mediation fixes.
-3. Name the sequencing: SDK-first (be the routing layer inside other
-   products) before consumer-assistant (be the product).
+3. ~~Name the sequencing: SDK-first before consumer-assistant~~ — ✅
+   done ("The wedge and the sequencing" in `VISION.md`).
 
 ## Architecture — ⭐⭐⭐⭐ → ⭐⭐⭐⭐⭐
 
@@ -209,6 +212,29 @@ hoped for:
    system decide who should answer you") pitched to builders who need
    routing, not another chatbot — demo URL, writeup, example
    integrations.
+
+## The quality bar
+
+Cross-cutting targets, held to the standard of mature infrastructure
+projects. The principle: **don't aim to be the biggest project, aim to
+be the most rigorous one** — reliability and coherence are what let
+Linux, Git, and Kubernetes become huge. Working method and PR rules are
+in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+| Area | Target | Today |
+|---|---|---|
+| Code quality | Coverage > 90% enforced in CI, `mypy --strict` clean, systematic code review | Tests thorough but coverage unmeasured; typed but unenforced; review practiced (PR #4 precedent) but not enforced by branch protection |
+| Architecture | Stable interfaces, independent components, versioned API | Contracts stable and independently tested; API unversioned |
+| Performance | Low latency, bounded memory, local execution whenever pertinent | Local route ~instant; never measured under load; no memory profile |
+| Security | Encryption in transit, authentication, secrets management, dependency audit | Auth + rate limiting opt-in in PR #5; no TLS story, no secrets policy, no dependency audit in CI |
+| Documentation | Complete, maintained, accessible: vision, architecture, roadmap, dev + API docs, contribution guides | `VISION.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `CONTRIBUTING.md`, per-module READMEs exist; API docs auto-generated at `/docs`; kept honest in PRs |
+| Ecosystem | Official SDKs, plugins, examples, contribution guides | Python SDK exists (unpublished); no plugin mechanism yet |
+| Reliability | CI/CD, monitoring, alerting, availability objectives | CI arrives in PR #5; no CD, monitoring, or SLOs |
+
+Metrics to collect once telemetry lands (Infrastructure #3), so
+decisions rest on data instead of assumption: response time per route,
+routing precision (chosen route vs. best-known outcome), execution cost,
+memory footprint, and user satisfaction signals.
 
 ## Order of operations
 

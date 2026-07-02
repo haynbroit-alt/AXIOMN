@@ -171,7 +171,18 @@ build on top of the same `Intent -> Route -> Execute` contract
 established here; they're not attempted in this repository because they
 can't be built *and verified* in this environment.
 
-Where the project is headed — target level per dimension (vision,
-architecture, code, infrastructure, product, traction), an honest
-assessment of where each stands today, and the ordered path between the
-two — is in [`ROADMAP.md`](ROADMAP.md).
+The repository's reference documents, written so another team could
+take the project over tomorrow:
+
+- [`VISION.md`](VISION.md) — the problem, the thesis, and the four
+  invariants that never change (intent as single entry point,
+  interchangeable capabilities, user-owned data, observability).
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — the layer stack, the kernel
+  contracts, and the rules that keep upper layers from breaking lower
+  ones.
+- [`ROADMAP.md`](ROADMAP.md) — target level per dimension, an honest
+  assessment of where each stands today, the quality bar, and the
+  ordered path.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — the working method: tests for
+  every behavior, a regression test for every bug, measurement over
+  assumption, systematic review.
