@@ -16,6 +16,34 @@ today, what five stars actually means for it, and the concrete steps
 between the two. Ratings are deliberately harsh — a roadmap that flatters
 the current state is useless for closing the gap.
 
+## What AXIOMN is, long-term
+
+> AXIOMN is an open-source **intent mediation runtime**: it transforms a
+> human intent into a graph of executable actions, independently of the
+> AI model, the operating system, or the service provider behind it.
+
+Not an assistant, not an app — a runtime other software builds on. That
+framing drives the trajectory below: the projects that became universal
+layers (Linux, Git, Kubernetes, LLVM, Python) didn't start by selling a
+product; they became a platform others built on, and adoption came from
+the builders. AXIOMN's endgame is the same: traction should eventually
+come from applications that *embed* AXIOMN, not only from an app named
+AXIOMN.
+
+```
+Vision → Kernel → Infrastructure → Capabilities → Product → Platform → Ecosystem → Adoption
+```
+
+| Stage | What it means for AXIOMN | Status |
+|---|---|---|
+| Kernel | The `Intent → Route → Execute → Act` pipeline and its contracts | ✅ started (this repo) |
+| Infrastructure | CI, auth, persistence, deployment, observability | 🔄 tier 1 in PR #5 |
+| Capabilities | Real backends behind the contracts: a real LLM, a real human queue, real tools | ❌ stubs today |
+| Product | A reference client (web demo, mobile) proving the runtime end-to-end | 🔄 exists, unproven |
+| Platform | A stable, versioned API + SDK that third parties can depend on | 🔄 SDK started, API unversioned |
+| Ecosystem | Plugins: community-contributed classifiers, tools, route profiles, action types | ❌ not started |
+| Adoption | Third-party applications embedding AXIOMN as their routing layer | ❌ not started |
+
 ## Summary
 
 | Dimension | Today | Target | The gap in one sentence |
@@ -159,27 +187,44 @@ being hallucinated.
 **Today.** Zero users, zero deployments, zero external feedback. One
 star is the floor and it's the honest score.
 
-**What ⭐⭐⭐⭐⭐ means.** Strangers use it, return to it, and the router's
-learned trust scores reflect *their* outcomes, not test fixtures.
+**What ⭐⭐⭐⭐⭐ means.** Not (only) end users of an AXIOMN app —
+**developers who embed AXIOMN**. Five-star traction is third-party
+applications using AXIOMN as their intent-routing layer, a plugin
+ecosystem contributing classifiers/tools/route profiles, and the
+router's learned trust scores reflecting *their* production outcomes,
+not test fixtures. At that point traction no longer depends on one
+application: it compounds through the ecosystem.
 
 **Path.** Code can't create traction, but it removes the blockers, in
 order: real answers (Produit #1) → a public deployed instance
-(Infrastructure #5) → usage telemetry to know what's happening
-(Infrastructure #3) → then distribution: a public demo URL, a
-Show HN / Product Hunt-style writeup built on the routing-transparency
-angle ("watch the system decide who should answer you"), and the SDK
-pitched to builders who need routing, not another chatbot.
+(Infrastructure #5) → usage telemetry (Infrastructure #3) → then the
+platform steps that make third-party adoption possible rather than just
+hoped for:
+1. **API stability**: version the `/intent` schema and the SDK, publish
+   `axiomn_sdk` to PyPI, document the compatibility promise.
+2. **Extensibility as a feature**: entry-point-based plugin discovery so
+   a classifier, tool, or action type can be `pip install`ed into a
+   running AXIOMN without forking it.
+3. **A reason to integrate**: the routing-transparency angle ("watch the
+   system decide who should answer you") pitched to builders who need
+   routing, not another chatbot — demo URL, writeup, example
+   integrations.
 
 ## Order of operations
 
-The dependencies above collapse into one sequence:
+The dependencies above collapse into one sequence, which is the
+`Kernel → … → Adoption` trajectory made concrete:
 
-1. Land PR #5 (infrastructure tier 1).
-2. Real LLM behind `cloud_ai` — unblocks Produit and everything after.
-3. Docker + deployed instance + telemetry.
-4. Async human queue (architecture and honesty of `await_human`).
-5. Verified Android build; voice on the web demo.
-6. Distribution push — only after the demo answers real questions.
+1. Land PR #5 (**Infrastructure** tier 1: CI, auth, persistence).
+2. Real LLM behind `cloud_ai` (**Capabilities**) — unblocks Produit and
+   everything after.
+3. Docker + deployed instance + telemetry (**Infrastructure** tier 2).
+4. Async human queue (**Capabilities**; makes `await_human` honest).
+5. Verified Android build; voice on the web demo (**Product**).
+6. Versioned API + published SDK (**Platform**).
+7. Plugin discovery for classifiers/tools/actions (**Ecosystem**).
+8. Third-party integrations and the public push (**Adoption**) — only
+   after the demo answers real questions.
 
 Vision (`VISION.md`) and Code hardening (mypy, coverage gate) are
 parallel tracks with no dependencies; they can start any time.

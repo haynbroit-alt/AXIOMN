@@ -1,13 +1,15 @@
 # AXIOMN
 
-**The universal intent mediation layer.**
+**An open-source intent mediation runtime.**
 
-AXIOMN turns a human intent — expressed in any language, as text today,
-as voice/screen/gesture tomorrow — into a routed, resolved action. It is
-not an assistant, an app, or a single model: it's the layer that decides
-*how* a request should be answered, then hands it to whichever system
-(a local model, a cloud model, a human expert) is the best fit, instead
-of being the answer itself.
+AXIOMN transforms a human intent — expressed in any language, as text
+today, as voice/screen/gesture tomorrow — into executable actions,
+independently of the AI model, the operating system, or the service
+provider behind it. It is not an assistant, an app, or a single model:
+it's the runtime that decides *how* a request should be answered, then
+hands it to whichever system (a local model, a cloud model, a human
+expert) is the best fit, instead of being the answer itself — a layer
+other software builds on, not a destination.
 
 This repository is a real, testable slice of that idea: a full
 `Intent Engine -> Router -> Execution Layer -> Action Engine` pipeline, a
