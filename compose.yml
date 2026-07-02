@@ -1,0 +1,23 @@
+services:
+  axiomn:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      # All optional — see README "Operations". Without provider keys the
+      # Gateway answers with clearly-labeled [simulated:...] responses.
+      AXIOMN_API_KEYS: ${AXIOMN_API_KEYS:-}
+      AXIOMN_RATE_LIMIT_PER_MINUTE: ${AXIOMN_RATE_LIMIT_PER_MINUTE:-60}
+      AXIOMN_ROUTER_STATE_PATH: /data/router_state.json
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - axiomn-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/health')"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+volumes:
+  axiomn-data:

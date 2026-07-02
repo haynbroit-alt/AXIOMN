@@ -69,3 +69,39 @@ def test_locally_resolved_requests_report_measured_savings():
 def test_intent_endpoint_rejects_missing_text():
     response = client.post("/intent", json={})
     assert response.status_code == 422
+
+
+def test_intent_endpoint_requires_api_key_when_configured(monkeypatch):
+    monkeypatch.setenv("AXIOMN_API_KEYS", "secret123")
+    assert client.post("/v1/intent", json={"text": "hello"}).status_code == 401
+
+
+def test_operator_answer_endpoint_requires_api_key_when_configured(monkeypatch):
+    monkeypatch.setenv("AXIOMN_API_KEYS", "secret123")
+    response = client.post("/v1/queue/any-id/answer", json={"text": "hi"})
+    assert response.status_code == 401  # auth is checked before ticket lookup
+
+
+def test_intent_endpoint_accepts_correct_api_key(monkeypatch):
+    monkeypatch.setenv("AXIOMN_API_KEYS", "secret123")
+    response = client.post(
+        "/v1/intent", json={"text": "hello"}, headers={"X-API-Key": "secret123"}
+    )
+    assert response.status_code == 200
+
+
+def test_intent_endpoint_enforces_rate_limit():
+    import axiomn.api.main as main_module
+
+    # A dedicated client id (via X-API-Key, which doubles as the rate-limit
+    # bucket key) keeps this test's budget isolated from every other test.
+    headers = {"X-API-Key": "rate-limit-test-client"}
+    original_max = main_module.rate_limiter.max_requests
+    main_module.rate_limiter.max_requests = 2
+    try:
+        client.post("/v1/intent", json={"text": "hello"}, headers=headers)
+        client.post("/v1/intent", json={"text": "hello"}, headers=headers)
+        response = client.post("/v1/intent", json={"text": "hello"}, headers=headers)
+        assert response.status_code == 429
+    finally:
+        main_module.rate_limiter.max_requests = original_max

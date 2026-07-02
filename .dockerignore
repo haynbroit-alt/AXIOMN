@@ -1,0 +1,10 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+android
+tests
+sdk/tests
+*.md
+router_state.json

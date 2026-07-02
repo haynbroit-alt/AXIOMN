@@ -94,9 +94,13 @@ class AXIOMNClient:
         self,
         base_url: str = "http://localhost:8000",
         timeout: float = 10.0,
+        api_key: Optional[str] = None,
         transport: Optional[httpx.BaseTransport] = None,
     ):
-        self._client = httpx.Client(base_url=base_url, timeout=timeout, transport=transport)
+        headers = {"X-API-Key": api_key} if api_key else {}
+        self._client = httpx.Client(
+            base_url=base_url, timeout=timeout, headers=headers, transport=transport
+        )
 
     def intent(self, text: str) -> IntentResult:
         response = self._client.post("/v1/intent", json={"text": text})
