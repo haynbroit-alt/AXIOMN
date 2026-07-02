@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -70,6 +71,20 @@ def _client_id(request: Request, x_api_key: str | None = Header(default=None)) -
 
 def _enforce_rate_limit(client_id: str = Depends(_client_id)) -> None:
     rate_limiter.check(client_id)
+
+# The embeddable widget (/ui/widget.js) runs on third-party origins — the
+# browser needs CORS consent to let those pages call the API. Access is
+# controlled by API keys (AXIOMN_API_KEYS), not by origin; deployments that
+# want origin pinning can set AXIOMN_CORS_ORIGINS to a comma-separated list.
+_cors_origins = [
+    o.strip() for o in os.environ.get("AXIOMN_CORS_ORIGINS", "*").split(",") if o.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-API-Key"],
+)
 
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.is_dir():
