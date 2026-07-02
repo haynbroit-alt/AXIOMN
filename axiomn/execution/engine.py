@@ -4,7 +4,7 @@ future routing decisions are grounded in what actually happened, closing
 the loop between execution and the Router's trust scores.
 """
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..intent.schema import Intent
 from ..models.tools import ToolRegistry, default_registry
@@ -17,6 +17,7 @@ class ExecutionOutcome:
     tool_name: str
     success: bool
     latency_ms: float
+    metadata: dict = field(default_factory=dict)
 
 
 class ExecutionEngine:
@@ -36,4 +37,5 @@ class ExecutionEngine:
             tool_name=tool.name,
             success=result.success,
             latency_ms=latency_ms,
+            metadata=result.metadata,
         )

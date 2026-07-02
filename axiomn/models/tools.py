@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from ..intent.schema import Intent, IntentCategory
+from ..queue.engine import HumanQueue
 from ..router.router import Route
 
 
@@ -16,6 +17,9 @@ from ..router.router import Route
 class ToolResult:
     output: str
     success: bool = True
+    # Structured facts about how the result was produced (e.g. the human-queue
+    # ticket id) that downstream stages need but that don't belong in the text.
+    metadata: dict = field(default_factory=dict)
 
 
 class ToolHandler(Protocol):
@@ -61,13 +65,23 @@ class CloudHandlerStub:
 
 
 class HumanQueueHandler:
-    """Placeholder for routing to a human/expert network (e.g. StudyMesh)."""
+    """Routes an intent to the human queue: the request becomes a real
+    `Ticket` a human can answer later, and the ticket id travels downstream
+    in `ToolResult.metadata` so the Action Engine can tell the client where
+    to poll for the eventual answer."""
+
+    def __init__(self, queue: HumanQueue | None = None):
+        self.queue = queue or HumanQueue()
 
     def run(self, intent: Intent) -> ToolResult:
-        return ToolResult(output=f"Queued for a human/expert: {intent.topic}")
+        ticket = self.queue.enqueue(intent)
+        return ToolResult(
+            output=f"Queued for a human/expert: {intent.topic}",
+            metadata={"ticket_id": ticket.id},
+        )
 
 
-def default_registry() -> ToolRegistry:
+def default_registry(human_queue: HumanQueue | None = None) -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(Tool(name="local_heuristic", route=Route.LOCAL_AI, handler=LocalHeuristicHandler()))
     registry.register(Tool(name="cloud_llm_stub", route=Route.CLOUD_AI, handler=CloudHandlerStub()))
@@ -75,7 +89,7 @@ def default_registry() -> ToolRegistry:
         Tool(
             name="human_expert_queue",
             route=Route.HUMAN_QUEUE,
-            handler=HumanQueueHandler(),
+            handler=HumanQueueHandler(queue=human_queue),
             affinity={IntentCategory.CONNECT},
         )
     )

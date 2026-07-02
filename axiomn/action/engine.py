@@ -28,9 +28,18 @@ _CATEGORY_ACTIONS: dict[IntentCategory, ActionType] = {
 
 
 class ActionEngine:
-    def decide(self, intent: Intent, route: Route, result_text: str) -> Action:
+    def decide(
+        self, intent: Intent, route: Route, result_text: str, metadata: dict | None = None
+    ) -> Action:
         if route == Route.HUMAN_QUEUE:
-            return Action(type=ActionType.AWAIT_HUMAN, payload={"message": result_text})
+            payload = {"message": result_text}
+            ticket_id = (metadata or {}).get("ticket_id")
+            if ticket_id:
+                # The client's pointer to the eventual answer: poll this
+                # ticket until its status flips to "answered".
+                payload["ticket_id"] = ticket_id
+                payload["status_url"] = f"/queue/{ticket_id}"
+            return Action(type=ActionType.AWAIT_HUMAN, payload=payload)
 
         action_type = _CATEGORY_ACTIONS.get(intent.category, ActionType.VOICE_REPLY)
         payload = {"text": result_text}

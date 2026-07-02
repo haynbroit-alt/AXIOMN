@@ -6,6 +6,7 @@ the `/intent` contract. Point it at a local dev server, a hosted
 deployment, or (for tests) an in-process ASGI app via a custom
 `httpx.BaseTransport`.
 """
+import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -53,6 +54,37 @@ class IntentResult:
         )
 
 
+@dataclass
+class QueueTicket:
+    """A human-escalated request. `answer` is None until a human resolves it."""
+
+    ticket_id: str
+    status: str  # "pending" | "answered"
+    question: str
+    category: str
+    language: str
+    answer: Optional[str]
+    created_at: float
+    answered_at: Optional[float]
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "QueueTicket":
+        return cls(
+            ticket_id=data["ticket_id"],
+            status=data["status"],
+            question=data["question"],
+            category=data["category"],
+            language=data["language"],
+            answer=data["answer"],
+            created_at=data["created_at"],
+            answered_at=data["answered_at"],
+        )
+
+
+class HumanAnswerTimeout(TimeoutError):
+    """No human answered the ticket within the allotted wait."""
+
+
 class AXIOMNClient:
     def __init__(
         self,
@@ -66,6 +98,36 @@ class AXIOMNClient:
         response = self._client.post("/intent", json={"text": text})
         response.raise_for_status()
         return IntentResult.from_dict(response.json())
+
+    def queue_status(self, ticket_id: str) -> QueueTicket:
+        response = self._client.get(f"/queue/{ticket_id}")
+        response.raise_for_status()
+        return QueueTicket.from_dict(response.json())
+
+    def answer_ticket(self, ticket_id: str, text: str) -> QueueTicket:
+        """The operator side: resolve a pending human-queue ticket."""
+        response = self._client.post(f"/queue/{ticket_id}/answer", json={"text": text})
+        response.raise_for_status()
+        return QueueTicket.from_dict(response.json())
+
+    def wait_for_human(
+        self, ticket_id: str, timeout: float = 60.0, poll_interval: float = 0.5
+    ) -> QueueTicket:
+        """Block until a human answers the ticket, polling `/queue/{id}`.
+
+        Raises `HumanAnswerTimeout` if no answer arrives within `timeout`
+        seconds. For non-blocking flows, poll `queue_status()` yourself.
+        """
+        deadline = time.monotonic() + timeout
+        while True:
+            ticket = self.queue_status(ticket_id)
+            if ticket.status == "answered":
+                return ticket
+            if time.monotonic() >= deadline:
+                raise HumanAnswerTimeout(
+                    f"Ticket {ticket_id!r} still unanswered after {timeout}s"
+                )
+            time.sleep(poll_interval)
 
     def close(self) -> None:
         self._client.close()

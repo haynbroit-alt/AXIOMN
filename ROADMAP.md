@@ -49,7 +49,7 @@ Vision → Kernel → Infrastructure → Capabilities → Product → Platform �
 | Dimension | Today | Target | The gap in one sentence |
 |---|---|---|---|
 | Vision | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Clear and documented, but lives only in the README — no positioning vs. Siri/Rabbit/agents, no "why now". |
-| Architecture | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Clean pluggable contracts with a real feedback loop, but synchronous-only and never proven under real load. |
+| Architecture | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Clean pluggable contracts, a real feedback loop, and async human escalation — but no streaming, no per-tenant state, and never proven under real load. |
 | Code | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Small, fully tested, typed dataclasses everywhere — but no enforced type checking or coverage gate. |
 | Infrastructure | ⭐⭐ | ⭐⭐⭐⭐⭐ | Until PR #5 lands: no CI, no auth, no persistence; after it: still no deployment, observability, or real database. |
 | Produit | ⭐⭐ | ⭐⭐⭐⭐⭐ | The pipeline is real but the answers aren't: `cloud_ai` returns a template string, the human queue is a stub, the Android app has never been built. |
@@ -92,16 +92,19 @@ fixed thresholds, and a closed feedback loop (`record_outcome`) so routing
 learns from real results. Every layer is independently testable and is.
 
 **What ⭐⭐⭐⭐⭐ means.** The same contracts, proven beyond a single
-synchronous process: requests that outlive an HTTP call (the human queue
-is inherently async — today `await_human` is a signal with no delivery
-mechanism behind it), streaming results, per-user routing state, and
-evidence the router's scoring actually beats a naive baseline.
+synchronous process: requests that outlive an HTTP call, streaming
+results, per-user routing state, and evidence the router's scoring
+actually beats a naive baseline.
 
 **Path.**
-1. Async escalation: a request queued to `human_queue` gets an ID; a
-   client can poll or subscribe for the eventual answer. This is the
-   single biggest architectural gap — `await_human` currently promises
-   something the system can't deliver.
+1. ~~Async escalation: a request queued to `human_queue` gets an ID; a
+   client can poll for the eventual answer~~ — ✅ done: `HumanQueue`
+   turns every escalation into a `Ticket`; `await_human` now carries a
+   `ticket_id` + `status_url`, clients poll `GET /queue/{id}`, an
+   operator answers via `POST /queue/{id}/answer`, and the SDK ships
+   `wait_for_human()`. The round trip is covered by tests and was
+   verified in a real browser. (Still in-memory/in-process: durable
+   storage and a real operator channel are Infrastructure/Produit work.)
 2. Streaming: `ExecutionEngine` supports incremental results for the
    cloud route (token streaming), with the Action Engine deciding once
    the stream ends.
@@ -163,8 +166,9 @@ observability, and secrets handled properly.
 *how* each answer was produced (intent, route, tool, confidence, timing)
 is genuinely the product's identity. But the answers themselves aren't
 real: `cloud_ai` returns a template string, not an LLM response; the
-human queue accepts requests no human will ever see; the Android client
-has never been compiled (no Android SDK in the dev environment).
+human queue now delivers answers end-to-end but no real operator channel
+watches it yet; the Android client has never been compiled (no Android
+SDK in the dev environment).
 
 **What ⭐⭐⭐⭐⭐ means.** A person with a real question gets a real answer,
 on the device they actually carry, and prefers this over opening a chat
@@ -178,8 +182,10 @@ being hallucinated.
    needs an API key from the repo owner and a thin client. Everything
    downstream (product feel, demo credibility, traction) is blocked on
    answers being real.
-2. A minimal real human queue: even "forward to a Telegram/Discord
-   channel, post the reply back" makes `await_human` honest.
+2. A real operator channel on the human queue: the ticket mechanism and
+   operator API exist (`GET /queue`, `POST /queue/{id}/answer`); what's
+   missing is a human actually watching it — even "forward new tickets
+   to a Telegram/Discord channel, post the reply back" closes the loop.
 3. Build and verify the Android app on a real device; fix what the
    compiler and the round-trip reveal.
 4. Voice on the web demo (the browser's speech APIs) so the "any
@@ -245,7 +251,8 @@ The dependencies above collapse into one sequence, which is the
 2. Real LLM behind `cloud_ai` (**Capabilities**) — unblocks Produit and
    everything after.
 3. Docker + deployed instance + telemetry (**Infrastructure** tier 2).
-4. Async human queue (**Capabilities**; makes `await_human` honest).
+4. ~~Async human queue (**Capabilities**; makes `await_human`
+   honest)~~ — ✅ done in-process; a real operator channel remains.
 5. Verified Android build; voice on the web demo (**Product**).
 6. Versioned API + published SDK (**Platform**).
 7. Plugin discovery for classifiers/tools/actions (**Ecosystem**).

@@ -61,6 +61,7 @@ contract:
 | `axiomn/intent/embedding.py` | `SemanticIntentClassifier`: nearest-neighbor in embedding space — matches by meaning, works across languages without translation (optional, see below); ambiguity comes from the gap between the best and second-best category's similarity |
 | `axiomn/router/router.py` | `Router.route(intent) -> Route`, a cost/latency/trust/ambiguity-scoring policy over `RouteProfile`s; `record_outcome()` updates trust from real results |
 | `axiomn/models/tools.py` | `ToolRegistry`: named, tagged tools per route, so a route isn't tied to exactly one backend |
+| `axiomn/queue/engine.py` | `HumanQueue`: the async half of the human route — an escalated request becomes a `Ticket`, a human answers it out-of-band, the client polls `/queue/{id}` for the answer |
 | `axiomn/execution/engine.py` | `ExecutionEngine.execute(route, intent) -> ExecutionOutcome`, picks a tool, times it, closes the feedback loop to the Router |
 | `axiomn/action/engine.py` | `ActionEngine.decide(intent, route, result_text) -> Action`: `voice_reply`, `copy_to_clipboard`, `open_url`, `schedule_task`, or `await_human` (always wins when `route == human_queue`, regardless of category — the async escalation isn't done yet) |
 | `axiomn/api/main.py` | FastAPI app wiring the pipeline behind `POST /intent`, plus a static demo at `/ui/` |
@@ -113,9 +114,13 @@ curl -X POST http://127.0.0.1:8000/intent \
 ```
 
 A request that escalates to a human (e.g. `route == "human_queue"`) gets
-`"action": {"type": "await_human", ...}` instead — the client's cue that
-there's no answer yet, rather than silently treating the queued message
-as the final reply.
+`"action": {"type": "await_human", ...}` instead — with a real `ticket_id`
+and `status_url` in the payload. The client polls `GET /queue/{ticket_id}`
+until `status` flips to `"answered"`; a human operator sees pending
+tickets at `GET /queue` and resolves one with
+`POST /queue/{ticket_id}/answer {"text": "..."}`. The `/ui/` demo does
+this automatically: the ⏳ placeholder is replaced by the human's answer
+the moment it arrives, without a reload.
 
 ### SDK usage
 
