@@ -71,6 +71,8 @@
     <input id="text" type="text" placeholder="Explique-moi les trous noirs..." autocomplete="off" />
     <button id="submit" type="submit">Ask</button>
   </form>
+  <input id="api-key" type="password" placeholder="API key (only if this server requires one)"
+         autocomplete="off" style="margin-top:8px;width:100%;box-sizing:border-box;background:#151823;border:1px solid #2a2f3d;color:#e6e9ef;border-radius:8px;padding:8px 14px;font-size:0.85rem;" />
 
   <div id="answer"></div>
   <div id="thought"></div>
@@ -84,6 +86,20 @@
   const answerEl = document.getElementById("answer");
   const thoughtEl = document.getElementById("thought");
   const errorEl = document.getElementById("error");
+  const apiKeyEl = document.getElementById("api-key");
+
+  // Deployments with AXIOMN_API_KEYS set require X-API-Key; remember the
+  // key in this browser so the demo stays usable after a reload.
+  apiKeyEl.value = localStorage.getItem("axiomn_api_key") || "";
+  apiKeyEl.addEventListener("change", () => {
+    localStorage.setItem("axiomn_api_key", apiKeyEl.value.trim());
+  });
+  function headers(extra) {
+    const h = extra || {};
+    const key = apiKeyEl.value.trim();
+    if (key) h["X-API-Key"] = key;
+    return h;
+  }
 
   let pollTimer = null;
 
@@ -92,7 +108,7 @@
   function pollTicket(statusUrl) {
     pollTimer = setInterval(async () => {
       try {
-        const response = await fetch(statusUrl);
+        const response = await fetch(statusUrl, { headers: headers() });
         if (!response.ok) return;
         const ticket = await response.json();
         if (ticket.status === "answered") {
@@ -118,9 +134,15 @@
     try {
       const response = await fetch("/v1/intent", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: headers({ "Content-Type": "application/json" }),
         body: JSON.stringify({ text }),
       });
+      if (response.status === 401) {
+        throw new Error("this server requires an API key — enter yours in the field below the search box");
+      }
+      if (response.status === 429) {
+        throw new Error("rate limit reached — wait a minute and try again");
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
 
