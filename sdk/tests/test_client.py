@@ -50,6 +50,22 @@ def test_wait_for_human_returns_the_answer_a_human_gives_later(live_server_url):
         assert ticket.answer == "Contactez Maître Dupont."
 
 
+def test_api_key_is_sent_as_the_x_api_key_header():
+    import httpx
+
+    seen = {}
+
+    def responder(request: httpx.Request) -> httpx.Response:
+        seen["key"] = request.headers.get("x-api-key")
+        return httpx.Response(200, json={})
+
+    with AXIOMNClient(
+        base_url="http://axiomn.test", api_key="sk-team", transport=httpx.MockTransport(responder)
+    ) as client:
+        client.metrics()
+    assert seen["key"] == "sk-team"
+
+
 def test_wait_for_human_times_out_when_nobody_answers(live_server_url):
     with AXIOMNClient(base_url=live_server_url) as client:
         result = client.intent("Trouve un expert en droit fiscal pour moi")

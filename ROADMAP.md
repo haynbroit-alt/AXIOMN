@@ -37,7 +37,7 @@ Vision → Kernel → Infrastructure → Capabilities → Product → Platform �
 | Stage | What it means for AXIOMN | Status |
 |---|---|---|
 | Kernel | The `Intent → Route → Execute → Act` pipeline and its contracts | ✅ started (this repo) |
-| Infrastructure | CI, auth, persistence, deployment, observability | 🔄 tier 1 in PR #5 |
+| Infrastructure | CI, auth, persistence, deployment, observability | 🔄 CI (lint + tests + 90% coverage floor + Docker smoke test), opt-in auth/rate limiting, router persistence, Dockerfile/compose all shipped; a public deployed instance remains |
 | Capabilities | Real backends behind the contracts: a real LLM, a real human queue, real tools | 🔄 Gateway + Anthropic/OpenAI adapters shipped (contract-tested); real calls need API keys; human queue delivers in-process |
 | Product | A reference client (web demo, mobile) proving the runtime end-to-end | 🔄 exists, unproven |
 | Platform | A stable, versioned API + SDK that third parties can depend on | 🔄 API versioned (`/v1`), SDK targets it; PyPI publication pending |
@@ -50,8 +50,8 @@ Vision → Kernel → Infrastructure → Capabilities → Product → Platform �
 |---|---|---|---|
 | Vision | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Clear and documented, but lives only in the README — no positioning vs. Siri/Rabbit/agents, no "why now". |
 | Architecture | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Clean pluggable contracts, a real feedback loop, and async human escalation — but no streaming, no per-tenant state, and never proven under real load. |
-| Code | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Small, fully tested, typed dataclasses everywhere — but no enforced type checking or coverage gate. |
-| Infrastructure | ⭐⭐ | ⭐⭐⭐⭐⭐ | Until PR #5 lands: no CI, no auth, no persistence; after it: still no deployment, observability, or real database. |
+| Code | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Small, fully tested (99% coverage, 90% floor in CI), typed dataclasses everywhere — but type checking not yet machine-enforced. |
+| Infrastructure | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | CI (with coverage floor + Docker smoke test), opt-in auth/rate limiting, router persistence, and Docker are in; still no public deployment, structured logging, or real database. |
 | Produit | ⭐⭐ | ⭐⭐⭐⭐⭐ | The pipeline is real but the answers aren't: `cloud_ai` returns a template string, the human queue is a stub, the Android app has never been built. |
 | Traction | ⭐ | ⭐⭐⭐⭐⭐ | Zero users. Nothing in this repo can change that directly; it can only remove the blockers (a real answer engine, a deployable service, usage telemetry). |
 
@@ -110,16 +110,18 @@ actually beats a naive baseline.
    the stream ends.
 3. Per-tenant router state: trust scores and outcomes keyed by API key,
    not global.
-4. A routing-quality benchmark: a fixed corpus of labeled requests, with
-   the scored router measured against a difficulty-threshold baseline —
-   turning "dynamic routing is better" from a claim into a number.
+4. ~~A routing-quality benchmark~~ — ✅ done
+   (`tests/test_routing_benchmark.py`): on a 16-intent labeled corpus,
+   the scored router resolves 100% vs 69% for the fixed-threshold
+   baseline — the number CI now protects.
 
 ## Code — ⭐⭐⭐⭐ → ⭐⭐⭐⭐⭐
 
-**Today.** ~800 lines of Python, 44+ tests that exercise real behavior
+**Today.** ~1,300 lines of Python, 107 tests that exercise real behavior
 (the SDK tests run against a live loopback server, the web demo was
-driven by a real browser), dataclasses with type hints throughout, and
-lint (`ruff`) coming in PR #5. The codebase is small enough to hold in
+driven by a real browser, provider adapters are pinned against each
+vendor's wire format), 99% coverage with a 90% floor enforced in CI,
+and `ruff` lint in CI. The codebase is still small enough to hold in
 your head — that's a feature.
 
 **What ⭐⭐⭐⭐⭐ means.** Nothing relies on discipline: types, coverage,
@@ -128,8 +130,8 @@ accidentally regress them.
 
 **Path.**
 1. `mypy --strict` (or pyright) clean, enforced in CI.
-2. A coverage floor in CI (the suite is thorough; make that measurable
-   and protected).
+2. ~~A coverage floor in CI~~ — ✅ done: 90% enforced
+   (`--cov-fail-under=90`), 99% measured.
 3. Docstrings on every public contract (`IntentClassifier`,
    `ToolHandler`, `RouteProfile`, `ActionEngine.decide`) — they are the
    extension API and should read like one.
@@ -139,19 +141,22 @@ accidentally regress them.
 
 ## Infrastructure — ⭐⭐ → ⭐⭐⭐⭐⭐
 
-**Today.** Honestly the weakest engineering dimension. On `main`: no CI,
-no auth, no rate limiting, no persistence — every restart forgets
-everything. PR #5 (open) closes the first tier: GitHub Actions running
-lint + the full suite, opt-in API keys and rate limiting, and JSON-file
-persistence for router trust scores.
+**Today.** Tier 1 is in: GitHub Actions runs lint, the full suite with
+a 90% coverage floor (99% measured), and builds + smoke-tests the Docker
+image on every push/PR. Opt-in API keys (`AXIOMN_API_KEYS`) and
+rate limiting protect `/v1/intent` and the operator endpoint; JSON-file
+persistence (`AXIOMN_ROUTER_STATE_PATH`) keeps router trust scores
+across restarts; `Dockerfile` + `compose.yml` make deployment one
+command. (This supersedes PR #5, which was written against a pre-v1
+`main` and can be closed.)
 
 **What ⭐⭐⭐⭐⭐ means.** Someone who isn't the author can deploy AXIOMN,
 watch it run, and trust it: one-command deployment, real storage,
 observability, and secrets handled properly.
 
 **Path.**
-1. Land PR #5 (CI, auth, rate limiting, trust-score persistence).
-2. `Dockerfile` + compose file; a tagged image published from CI.
+1. ~~Land CI, auth, rate limiting, trust-score persistence~~ — ✅ done (supersedes PR #5).
+2. ~~`Dockerfile` + compose file~~ — ✅ done, built and smoke-tested in CI; a tagged image published from CI remains.
 3. Structured logging (request ID, intent, route, tool, latency) and a
    `/metrics` endpoint — this doubles as the foundation for measuring
    traction.
@@ -234,13 +239,13 @@ in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 | Area | Target | Today |
 |---|---|---|
-| Code quality | Coverage > 90% enforced in CI, `mypy --strict` clean, systematic code review | Tests thorough but coverage unmeasured; typed but unenforced; review practiced (PR #4 precedent) but not enforced by branch protection |
+| Code quality | Coverage > 90% enforced in CI, `mypy --strict` clean, systematic code review | Coverage 99%, floor 90% enforced in CI; typed but mypy unenforced; review practiced but not enforced by branch protection |
 | Architecture | Stable interfaces, independent components, versioned API | Contracts stable and independently tested; API versioned (`/v1` + hidden aliases) |
 | Performance | Low latency, bounded memory, local execution whenever pertinent | Local route ~instant; never measured under load; no memory profile |
-| Security | Encryption in transit, authentication, secrets management, dependency audit | Auth + rate limiting opt-in in PR #5; no TLS story, no secrets policy, no dependency audit in CI |
+| Security | Encryption in transit, authentication, secrets management, dependency audit | Auth + rate limiting shipped (opt-in); secrets only via env vars; no TLS termination story, no dependency audit in CI |
 | Documentation | Complete, maintained, accessible: vision, architecture, roadmap, dev + API docs, contribution guides | `VISION.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `CONTRIBUTING.md`, per-module READMEs exist; API docs auto-generated at `/docs`; kept honest in PRs |
 | Ecosystem | Official SDKs, plugins, examples, contribution guides | Python SDK exists (unpublished); no plugin mechanism yet |
-| Reliability | CI/CD, monitoring, alerting, availability objectives | CI arrives in PR #5; no CD, monitoring, or SLOs |
+| Reliability | CI/CD, monitoring, alerting, availability objectives | CI live (lint, tests, coverage floor, Docker smoke test); no CD, monitoring, or SLOs |
 
 First telemetry has landed: `GET /v1/metrics` reports request volume,
 latency (avg/p50/p95), route shares (local/cloud/human), success rate,
@@ -256,10 +261,10 @@ The dependencies above collapse into one sequence, which is the
 step 1 of [`STRATEGY.md`](STRATEGY.md) — the "real MVP" that must exist
 before any commercial question is worth asking:
 
-1. Land PR #5 (**Infrastructure** tier 1: CI, auth, persistence).
+1. ~~Infrastructure tier 1: CI, auth, persistence~~ — ✅ done (supersedes PR #5).
 2. Real LLM behind `cloud_ai` (**Capabilities**) — unblocks Produit and
    everything after.
-3. Docker + deployed instance + telemetry (**Infrastructure** tier 2).
+3. ~~Docker~~ + ~~telemetry~~ (✅ both) + a public deployed instance (**Infrastructure** tier 2 — needs an owner-chosen host).
 4. ~~Async human queue (**Capabilities**; makes `await_human`
    honest)~~ — ✅ done in-process; a real operator channel remains.
 5. Verified Android build; voice on the web demo (**Product**).

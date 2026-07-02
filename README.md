@@ -181,6 +181,41 @@ multilingual model on first use. It's verified in
 form", its French translation, and its Japanese translation all land in
 the same category — by meaning, with no translation step.
 
+### Operations: auth, rate limiting, persistence, Docker
+
+Everything is opt-in and off by default — local dev and the test suite
+need zero setup. Set these before exposing AXIOMN beyond your machine:
+
+| Env var | Default | Effect |
+|---|---|---|
+| `AXIOMN_API_KEYS` | unset (auth disabled) | Comma-separated accepted keys. When set, `POST /v1/intent` and the operator endpoint `POST /v1/queue/{id}/answer` require a matching `X-API-Key` header (401 otherwise). **Unset means those endpoints are wide open.** |
+| `AXIOMN_RATE_LIMIT_PER_MINUTE` | `60` | Max `POST /v1/intent` requests per client (per API key, or per IP without one) per rolling 60s window. In-memory, per-process. |
+| `AXIOMN_ROUTER_STATE_PATH` | unset (no persistence) | JSON file where the Router's trust scores are saved on every `record_outcome()` and reloaded at startup. Unset means every restart forgets what the Router has learned. |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | unset (simulated) | Real provider clients for the Gateway. Without them, cloud answers are explicitly labeled `[simulated:...]`. |
+
+The SDK passes the key with `AXIOMNClient(api_key="...")`.
+
+One-command deployment:
+
+```bash
+docker build -t axiomn . && docker run -p 8000:8000 \
+  -e AXIOMN_API_KEYS=your-secret -e ANTHROPIC_API_KEY=sk-... axiomn
+# or, with persistence volume and healthcheck:
+docker compose up
+```
+
+Deploying to Fly.io uses the repository's own `Dockerfile` and
+`fly.toml` (proxy on `internal_port = 8000`, health check on
+`/v1/health`). Set secrets out-of-band, never in the repo:
+`fly secrets set AXIOMN_API_KEYS=... ANTHROPIC_API_KEY=sk-...`.
+
+CI (`.github/workflows/ci.yml`) runs lint, the full test suite with a
+**90% coverage floor** (currently at 99%), and builds + smoke-tests the
+Docker image on every push and pull request. The routing-quality
+benchmark (`tests/test_routing_benchmark.py`) runs with the suite: on a
+16-intent labeled corpus, the scored router resolves **100% vs 69%** for
+the fixed-threshold baseline it replaced.
+
 ### Mobile client
 
 `android/` has a push-to-talk Android MVP (mic button → speech-to-text →

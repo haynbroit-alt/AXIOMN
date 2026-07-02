@@ -57,3 +57,31 @@ def test_high_ambiguity_escalates_a_cloud_bound_request_to_human():
 
 def test_low_ambiguity_does_not_change_medium_difficulty_routing():
     assert Router().route(_intent(5, ambiguity=0.1)) == Route.CLOUD_AI
+
+
+def test_trust_scores_persist_across_router_instances(tmp_path):
+    state_path = str(tmp_path / "router_state.json")
+
+    router = Router(persistence_path=state_path)
+    router.record_outcome(Route.LOCAL_AI, success=False)
+    degraded_trust = next(p.trust_score for p in router.profiles if p.route == Route.LOCAL_AI)
+
+    reloaded = Router(persistence_path=state_path)
+    reloaded_trust = next(p.trust_score for p in reloaded.profiles if p.route == Route.LOCAL_AI)
+
+    assert reloaded_trust == degraded_trust
+
+
+def test_corrupt_state_file_never_blocks_startup(tmp_path):
+    state_path = tmp_path / "router_state.json"
+    state_path.write_text("{not json")
+
+    router = Router(persistence_path=str(state_path))  # must not raise
+    assert router.profiles  # defaults intact
+
+
+def test_without_persistence_path_nothing_is_written(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    router = Router()
+    router.record_outcome(Route.LOCAL_AI, success=False)
+    assert list(tmp_path.iterdir()) == []

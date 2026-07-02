@@ -1,23 +1,37 @@
-# fly.toml app configuration file generated for axiomn on 2026-07-02T14:59:21Z
+# Fly.io configuration for AXIOMN (https://axiomn.fly.dev)
 #
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+# Replaces the auto-generated config from the first deploy, which had a
+# port mismatch: its fly.toml pointed the proxy at internal_port 8080
+# while its Dockerfile's `fastapi run` listened on 8000 — so the proxy
+# never found a machine to route to. This file matches the repository's
+# own Dockerfile (uvicorn on 0.0.0.0:8000) and health-checks the real
+# endpoint.
 #
+# Secrets are set out-of-band, never here:
+#   fly secrets set AXIOMN_API_KEYS=... ANTHROPIC_API_KEY=sk-...
 
 app = 'axiomn'
 primary_region = 'ams'
 
 [build]
+  # Uses the repository Dockerfile.
 
 [http_service]
-  internal_port = 8080
+  internal_port = 8000
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']
 
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/v1/health'
+
 [[vm]]
-  memory = '1gb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 256
+  memory = '512mb'

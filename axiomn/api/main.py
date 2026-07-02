@@ -9,9 +9,10 @@ SDK targets. The same endpoints also answer on unversioned paths (`/intent`,
 `/queue/...`) as compatibility aliases for pre-v1 clients and for the
 kernel-emitted `status_url` pointer; they are hidden from the schema.
 """
+import os
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -28,6 +29,7 @@ from ..queue.engine import (
     TicketNotFound,
 )
 from ..router.router import Route, Router
+from .security import RateLimiter, require_api_key
 
 app = FastAPI(
     title="AXIOMN",
@@ -36,7 +38,7 @@ app = FastAPI(
 )
 
 intent_engine = IntentEngine()
-router = Router()
+router = Router(persistence_path=os.environ.get("AXIOMN_ROUTER_STATE_PATH"))
 human_queue = HumanQueue()
 gateway = build_default_gateway()
 execution_engine = ExecutionEngine(
@@ -44,6 +46,19 @@ execution_engine = ExecutionEngine(
 )
 action_engine = ActionEngine()
 metrics = MetricsCollector()
+rate_limiter = RateLimiter(max_requests=int(os.environ.get("AXIOMN_RATE_LIMIT_PER_MINUTE", "60")))
+
+
+def _client_id(request: Request, x_api_key: str | None = Header(default=None)) -> str:
+    # The API key doubles as the rate-limit bucket; anonymous clients are
+    # bucketed by IP.
+    if x_api_key:
+        return x_api_key
+    return request.client.host if request.client else "unknown"
+
+
+def _enforce_rate_limit(client_id: str = Depends(_client_id)) -> None:
+    rate_limiter.check(client_id)
 
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.is_dir():
@@ -87,7 +102,11 @@ def health() -> dict:
     return {"status": "ok"}
 
 
-@api.post("/intent", response_model=IntentResponse)
+@api.post(
+    "/intent",
+    response_model=IntentResponse,
+    dependencies=[Depends(require_api_key), Depends(_enforce_rate_limit)],
+)
 def handle_intent(payload: IntentRequest) -> IntentResponse:
     intent = intent_engine.classify(payload.text)
     route = router.route(intent)
@@ -173,7 +192,11 @@ def get_ticket(ticket_id: str) -> TicketResponse:
         raise HTTPException(status_code=404, detail=f"No ticket {ticket_id!r}") from None
 
 
-@api.post("/queue/{ticket_id}/answer", response_model=TicketResponse)
+@api.post(
+    "/queue/{ticket_id}/answer",
+    response_model=TicketResponse,
+    dependencies=[Depends(require_api_key)],
+)
 def answer_ticket(ticket_id: str, payload: TicketAnswerRequest) -> TicketResponse:
     """The human side of the loop: an operator resolves a pending ticket."""
     try:
