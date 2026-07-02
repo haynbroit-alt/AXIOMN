@@ -82,6 +82,14 @@ why," without marrying a provider. Only once the runtime is proven
 inside other products does a first-party assistant experience make sense
 (see ROADMAP: `Kernel → … → Adoption`).
 
+The first product is chosen (see `STRATEGY.md`): **AXIOMN Gateway** —
+one API that automatically picks the best model for every request by
+cost, quality, and latency, shows why, and measures the savings against
+the everything-to-the-premium-model baseline. It sells a felt,
+measurable pain (the LLM bill; provider lock-in) on a Thursday-evening
+sales cycle, while this document's larger vision stays what it is: the
+long term, discovered after adoption, never the pitch.
+
 ## The moat
 
 The routing feedback loop. `record_outcome()` feeds real results back

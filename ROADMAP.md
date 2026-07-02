@@ -38,9 +38,9 @@ Vision → Kernel → Infrastructure → Capabilities → Product → Platform �
 |---|---|---|
 | Kernel | The `Intent → Route → Execute → Act` pipeline and its contracts | ✅ started (this repo) |
 | Infrastructure | CI, auth, persistence, deployment, observability | 🔄 tier 1 in PR #5 |
-| Capabilities | Real backends behind the contracts: a real LLM, a real human queue, real tools | ❌ stubs today |
+| Capabilities | Real backends behind the contracts: a real LLM, a real human queue, real tools | 🔄 Gateway + Anthropic/OpenAI adapters shipped (contract-tested); real calls need API keys; human queue delivers in-process |
 | Product | A reference client (web demo, mobile) proving the runtime end-to-end | 🔄 exists, unproven |
-| Platform | A stable, versioned API + SDK that third parties can depend on | 🔄 SDK started, API unversioned |
+| Platform | A stable, versioned API + SDK that third parties can depend on | 🔄 API versioned (`/v1`), SDK targets it; PyPI publication pending |
 | Ecosystem | Plugins: community-contributed classifiers, tools, route profiles, action types | ❌ not started |
 | Adoption | Third-party applications embedding AXIOMN as their routing layer | ❌ not started |
 
@@ -49,7 +49,7 @@ Vision → Kernel → Infrastructure → Capabilities → Product → Platform �
 | Dimension | Today | Target | The gap in one sentence |
 |---|---|---|---|
 | Vision | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Clear and documented, but lives only in the README — no positioning vs. Siri/Rabbit/agents, no "why now". |
-| Architecture | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Clean pluggable contracts with a real feedback loop, but synchronous-only and never proven under real load. |
+| Architecture | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Clean pluggable contracts, a real feedback loop, and async human escalation — but no streaming, no per-tenant state, and never proven under real load. |
 | Code | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Small, fully tested, typed dataclasses everywhere — but no enforced type checking or coverage gate. |
 | Infrastructure | ⭐⭐ | ⭐⭐⭐⭐⭐ | Until PR #5 lands: no CI, no auth, no persistence; after it: still no deployment, observability, or real database. |
 | Produit | ⭐⭐ | ⭐⭐⭐⭐⭐ | The pipeline is real but the answers aren't: `cloud_ai` returns a template string, the human queue is a stub, the Android app has never been built. |
@@ -92,16 +92,19 @@ fixed thresholds, and a closed feedback loop (`record_outcome`) so routing
 learns from real results. Every layer is independently testable and is.
 
 **What ⭐⭐⭐⭐⭐ means.** The same contracts, proven beyond a single
-synchronous process: requests that outlive an HTTP call (the human queue
-is inherently async — today `await_human` is a signal with no delivery
-mechanism behind it), streaming results, per-user routing state, and
-evidence the router's scoring actually beats a naive baseline.
+synchronous process: requests that outlive an HTTP call, streaming
+results, per-user routing state, and evidence the router's scoring
+actually beats a naive baseline.
 
 **Path.**
-1. Async escalation: a request queued to `human_queue` gets an ID; a
-   client can poll or subscribe for the eventual answer. This is the
-   single biggest architectural gap — `await_human` currently promises
-   something the system can't deliver.
+1. ~~Async escalation: a request queued to `human_queue` gets an ID; a
+   client can poll for the eventual answer~~ — ✅ done: `HumanQueue`
+   turns every escalation into a `Ticket`; `await_human` now carries a
+   `ticket_id` + `status_url`, clients poll `GET /queue/{id}`, an
+   operator answers via `POST /queue/{id}/answer`, and the SDK ships
+   `wait_for_human()`. The round trip is covered by tests and was
+   verified in a real browser. (Still in-memory/in-process: durable
+   storage and a real operator channel are Infrastructure/Produit work.)
 2. Streaming: `ExecutionEngine` supports incremental results for the
    cloud route (token streaming), with the Action Engine deciding once
    the stream ends.
@@ -163,8 +166,9 @@ observability, and secrets handled properly.
 *how* each answer was produced (intent, route, tool, confidence, timing)
 is genuinely the product's identity. But the answers themselves aren't
 real: `cloud_ai` returns a template string, not an LLM response; the
-human queue accepts requests no human will ever see; the Android client
-has never been compiled (no Android SDK in the dev environment).
+human queue now delivers answers end-to-end but no real operator channel
+watches it yet; the Android client has never been compiled (no Android
+SDK in the dev environment).
 
 **What ⭐⭐⭐⭐⭐ means.** A person with a real question gets a real answer,
 on the device they actually carry, and prefers this over opening a chat
@@ -173,13 +177,18 @@ a visibly better answer, and impossible things reach a human instead of
 being hallucinated.
 
 **Path.**
-1. **Real LLM behind `cloud_ai`** — the single highest-leverage change
-   in the entire roadmap. The `ToolHandler` contract already fits; it
-   needs an API key from the repo owner and a thin client. Everything
-   downstream (product feel, demo credibility, traction) is blocked on
-   answers being real.
-2. A minimal real human queue: even "forward to a Telegram/Discord
-   channel, post the reply back" makes `await_human` honest.
+1. **Real LLM behind `cloud_ai`** — 🔄 the Gateway now sits on the
+   cloud route with thin Anthropic and OpenAI adapters
+   (`axiomn/gateway/providers.py`), selected per request by
+   cost/quality/latency and contract-tested against each vendor's exact
+   request/response shape. What remains is the part only the owner can
+   provide: real API keys (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` env
+   vars) and a real-call verification. Until then, answers are honestly
+   labeled `[simulated:...]`.
+2. A real operator channel on the human queue: the ticket mechanism and
+   operator API exist (`GET /queue`, `POST /queue/{id}/answer`); what's
+   missing is a human actually watching it — even "forward new tickets
+   to a Telegram/Discord channel, post the reply back" closes the loop.
 3. Build and verify the Android app on a real device; fix what the
    compiler and the round-trip reveal.
 4. Voice on the web demo (the browser's speech APIs) so the "any
@@ -203,8 +212,10 @@ order: real answers (Produit #1) → a public deployed instance
 (Infrastructure #5) → usage telemetry (Infrastructure #3) → then the
 platform steps that make third-party adoption possible rather than just
 hoped for:
-1. **API stability**: version the `/intent` schema and the SDK, publish
-   `axiomn_sdk` to PyPI, document the compatibility promise.
+1. **API stability**: ~~version the `/intent` schema~~ ✅ done — `/v1`
+   is the documented contract, bare paths stay as hidden compatibility
+   aliases, and the SDK targets `/v1`. Remaining: publish `axiomn_sdk`
+   to PyPI and write the compatibility promise down.
 2. **Extensibility as a feature**: entry-point-based plugin discovery so
    a classifier, tool, or action type can be `pip install`ed into a
    running AXIOMN without forking it.
@@ -224,30 +235,35 @@ in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 | Area | Target | Today |
 |---|---|---|
 | Code quality | Coverage > 90% enforced in CI, `mypy --strict` clean, systematic code review | Tests thorough but coverage unmeasured; typed but unenforced; review practiced (PR #4 precedent) but not enforced by branch protection |
-| Architecture | Stable interfaces, independent components, versioned API | Contracts stable and independently tested; API unversioned |
+| Architecture | Stable interfaces, independent components, versioned API | Contracts stable and independently tested; API versioned (`/v1` + hidden aliases) |
 | Performance | Low latency, bounded memory, local execution whenever pertinent | Local route ~instant; never measured under load; no memory profile |
 | Security | Encryption in transit, authentication, secrets management, dependency audit | Auth + rate limiting opt-in in PR #5; no TLS story, no secrets policy, no dependency audit in CI |
 | Documentation | Complete, maintained, accessible: vision, architecture, roadmap, dev + API docs, contribution guides | `VISION.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `CONTRIBUTING.md`, per-module READMEs exist; API docs auto-generated at `/docs`; kept honest in PRs |
 | Ecosystem | Official SDKs, plugins, examples, contribution guides | Python SDK exists (unpublished); no plugin mechanism yet |
 | Reliability | CI/CD, monitoring, alerting, availability objectives | CI arrives in PR #5; no CD, monitoring, or SLOs |
 
-Metrics to collect once telemetry lands (Infrastructure #3), so
-decisions rest on data instead of assumption: response time per route,
-routing precision (chosen route vs. best-known outcome), execution cost,
+First telemetry has landed: `GET /v1/metrics` reports request volume,
+latency (avg/p50/p95), route shares (local/cloud/human), success rate,
+and estimated cost per request. Still to collect, so decisions rest on
+data instead of assumption: per-route latency breakdown,
+routing precision (chosen route vs. best-known outcome),
 memory footprint, and user satisfaction signals.
 
 ## Order of operations
 
 The dependencies above collapse into one sequence, which is the
-`Kernel → … → Adoption` trajectory made concrete:
+`Kernel → … → Adoption` trajectory made concrete. Items 1–5 are also
+step 1 of [`STRATEGY.md`](STRATEGY.md) — the "real MVP" that must exist
+before any commercial question is worth asking:
 
 1. Land PR #5 (**Infrastructure** tier 1: CI, auth, persistence).
 2. Real LLM behind `cloud_ai` (**Capabilities**) — unblocks Produit and
    everything after.
 3. Docker + deployed instance + telemetry (**Infrastructure** tier 2).
-4. Async human queue (**Capabilities**; makes `await_human` honest).
+4. ~~Async human queue (**Capabilities**; makes `await_human`
+   honest)~~ — ✅ done in-process; a real operator channel remains.
 5. Verified Android build; voice on the web demo (**Product**).
-6. Versioned API + published SDK (**Platform**).
+6. ~~Versioned API~~ (✅ `/v1`) + published SDK (**Platform**).
 7. Plugin discovery for classifiers/tools/actions (**Ecosystem**).
 8. Third-party integrations and the public push (**Adoption**) — only
    after the demo answers real questions.

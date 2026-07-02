@@ -1,3 +1,3 @@
-from .client import Action, AXIOMNClient, IntentResult
+from .client import Action, AXIOMNClient, HumanAnswerTimeout, IntentResult, QueueTicket
 
-__all__ = ["AXIOMNClient", "IntentResult", "Action"]
+__all__ = ["AXIOMNClient", "IntentResult", "Action", "QueueTicket", "HumanAnswerTimeout"]

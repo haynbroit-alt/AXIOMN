@@ -16,6 +16,18 @@ def test_human_queue_route_always_yields_await_human_regardless_of_category():
     assert action.payload["message"] == "Queued for a human/expert"
 
 
+def test_await_human_carries_ticket_id_and_status_url_when_execution_provides_one():
+    action = ActionEngine().decide(
+        _intent(IntentCategory.CONNECT),
+        Route.HUMAN_QUEUE,
+        "Queued for a human/expert",
+        metadata={"ticket_id": "abc123"},
+    )
+    assert action.type == ActionType.AWAIT_HUMAN
+    assert action.payload["ticket_id"] == "abc123"
+    assert action.payload["status_url"] == "/queue/abc123"
+
+
 def test_learn_intent_on_local_ai_yields_voice_reply():
     action = ActionEngine().decide(_intent(IntentCategory.LEARN), Route.LOCAL_AI, "some answer")
     assert action.type == ActionType.VOICE_REPLY

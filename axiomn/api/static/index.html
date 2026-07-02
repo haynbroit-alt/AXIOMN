@@ -85,6 +85,25 @@
   const thoughtEl = document.getElementById("thought");
   const errorEl = document.getElementById("error");
 
+  let pollTimer = null;
+
+  // The async half of the human route: keep checking the ticket until a
+  // human answers, then swap the "queued" placeholder for the real answer.
+  function pollTicket(statusUrl) {
+    pollTimer = setInterval(async () => {
+      try {
+        const response = await fetch(statusUrl);
+        if (!response.ok) return;
+        const ticket = await response.json();
+        if (ticket.status === "answered") {
+          clearInterval(pollTimer);
+          pollTimer = null;
+          answerEl.textContent = `🧑‍🏫 ${ticket.answer}`;
+        }
+      } catch (_) { /* transient network error: keep polling */ }
+    }, 2000);
+  }
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const text = input.value.trim();
@@ -94,9 +113,10 @@
     errorEl.style.display = "none";
     answerEl.style.display = "none";
     thoughtEl.style.display = "none";
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
 
     try {
-      const response = await fetch("/intent", {
+      const response = await fetch("/v1/intent", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
@@ -104,17 +124,27 @@
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
 
-      answerEl.textContent = data.action.type === "await_human"
-        ? `⏳ ${data.result}`
-        : data.result;
+      const awaiting = data.action.type === "await_human";
+      answerEl.textContent = awaiting ? `⏳ ${data.result}` : data.result;
       answerEl.style.display = "block";
+      if (awaiting && data.action.payload.status_url) {
+        pollTicket(data.action.payload.status_url);
+      }
 
+      const ticketLine = awaiting && data.action.payload.ticket_id
+        ? `<div><b>Ticket:</b> ${data.action.payload.ticket_id}</div>`
+        : "";
+      const modelLine = data.model
+        ? `<div><b>Model:</b> ${data.model} &mdash; ${data.model_reason || ""}</div>`
+        : "";
       thoughtEl.innerHTML = `
         <div><b>Intent:</b> ${data.intent} (confidence ${data.confidence}, ambiguity ${data.ambiguity})</div>
         <div><b>Language:</b> ${data.language} &middot; <b>Difficulty:</b> ${data.difficulty}/10</div>
         <div><b>Route:</b> ${data.route} &middot; <b>Tool:</b> ${data.tool}</div>
+        ${modelLine}
         <div><b>Action:</b> ${data.action.type}</div>
         <div><b>Execution time:</b> ${data.execution_time_ms} ms</div>
+        ${ticketLine}
       `;
       thoughtEl.style.display = "block";
     } catch (err) {
