@@ -1,0 +1,185 @@
+# AXIOMN — Target Levels & Roadmap
+
+The target, set by the project owner, is five stars in every dimension:
+
+| Niveau | Vision cible |
+|---|---|
+| Vision | ⭐⭐⭐⭐⭐ |
+| Architecture | ⭐⭐⭐⭐⭐ |
+| Code | ⭐⭐⭐⭐⭐ |
+| Infrastructure | ⭐⭐⭐⭐⭐ |
+| Produit | ⭐⭐⭐⭐⭐ |
+| Traction | ⭐⭐⭐⭐⭐ |
+
+This document is the honest gap analysis: where each dimension stands
+today, what five stars actually means for it, and the concrete steps
+between the two. Ratings are deliberately harsh — a roadmap that flatters
+the current state is useless for closing the gap.
+
+## Summary
+
+| Dimension | Today | Target | The gap in one sentence |
+|---|---|---|---|
+| Vision | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Clear and documented, but lives only in the README — no positioning vs. Siri/Rabbit/agents, no "why now". |
+| Architecture | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Clean pluggable contracts with a real feedback loop, but synchronous-only and never proven under real load. |
+| Code | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | Small, fully tested, typed dataclasses everywhere — but no enforced type checking or coverage gate. |
+| Infrastructure | ⭐⭐ | ⭐⭐⭐⭐⭐ | Until PR #5 lands: no CI, no auth, no persistence; after it: still no deployment, observability, or real database. |
+| Produit | ⭐⭐ | ⭐⭐⭐⭐⭐ | The pipeline is real but the answers aren't: `cloud_ai` returns a template string, the human queue is a stub, the Android app has never been built. |
+| Traction | ⭐ | ⭐⭐⭐⭐⭐ | Zero users. Nothing in this repo can change that directly; it can only remove the blockers (a real answer engine, a deployable service, usage telemetry). |
+
+## Vision — ⭐⭐⭐⭐ → ⭐⭐⭐⭐⭐
+
+**Today.** The core idea — a universal intent mediation layer that decides
+*how* a request should be answered rather than being the answer — is
+crisp, differentiated, and already written down (README intro, the
+"deliberately out of scope" section). The architecture visibly serves the
+vision instead of contradicting it.
+
+**What ⭐⭐⭐⭐⭐ means.** The vision survives contact with a skeptic. A
+canonical document that states: the problem (every assistant is a silo
+that answers everything itself, badly), why mediation beats monolith
+(cost, privacy, quality, and the ability to say "a human should take
+this"), why now (on-device models finally make the local route real),
+who it's for first, and what the moat is (the routing feedback loop —
+trust scores learned from real outcomes — compounds with usage; the
+models being routed to don't).
+
+**Path.**
+1. Write `VISION.md`: problem, thesis, why-now, wedge (first concrete
+   user + use case), moat, and explicit non-goals.
+2. Add a competitive positioning section: what Siri/Assistant, LLM
+   chat apps, and agent frameworks each get wrong that mediation fixes.
+3. Name the sequencing: SDK-first (be the routing layer inside other
+   products) before consumer-assistant (be the product).
+
+## Architecture — ⭐⭐⭐⭐ → ⭐⭐⭐⭐⭐
+
+**Today.** Four small layers with narrow, swappable contracts
+(`IntentClassifier`, `RouteProfile`, `ToolHandler`, `ActionEngine`), a
+router that scores on capability/cost/latency/trust/ambiguity instead of
+fixed thresholds, and a closed feedback loop (`record_outcome`) so routing
+learns from real results. Every layer is independently testable and is.
+
+**What ⭐⭐⭐⭐⭐ means.** The same contracts, proven beyond a single
+synchronous process: requests that outlive an HTTP call (the human queue
+is inherently async — today `await_human` is a signal with no delivery
+mechanism behind it), streaming results, per-user routing state, and
+evidence the router's scoring actually beats a naive baseline.
+
+**Path.**
+1. Async escalation: a request queued to `human_queue` gets an ID; a
+   client can poll or subscribe for the eventual answer. This is the
+   single biggest architectural gap — `await_human` currently promises
+   something the system can't deliver.
+2. Streaming: `ExecutionEngine` supports incremental results for the
+   cloud route (token streaming), with the Action Engine deciding once
+   the stream ends.
+3. Per-tenant router state: trust scores and outcomes keyed by API key,
+   not global.
+4. A routing-quality benchmark: a fixed corpus of labeled requests, with
+   the scored router measured against a difficulty-threshold baseline —
+   turning "dynamic routing is better" from a claim into a number.
+
+## Code — ⭐⭐⭐⭐ → ⭐⭐⭐⭐⭐
+
+**Today.** ~800 lines of Python, 44+ tests that exercise real behavior
+(the SDK tests run against a live loopback server, the web demo was
+driven by a real browser), dataclasses with type hints throughout, and
+lint (`ruff`) coming in PR #5. The codebase is small enough to hold in
+your head — that's a feature.
+
+**What ⭐⭐⭐⭐⭐ means.** Nothing relies on discipline: types, coverage,
+and style are all enforced by machines, and a new contributor can't
+accidentally regress them.
+
+**Path.**
+1. `mypy --strict` (or pyright) clean, enforced in CI.
+2. A coverage floor in CI (the suite is thorough; make that measurable
+   and protected).
+3. Docstrings on every public contract (`IntentClassifier`,
+   `ToolHandler`, `RouteProfile`, `ActionEngine.decide`) — they are the
+   extension API and should read like one.
+4. Property-based tests (hypothesis) for the router's scoring
+   invariants, e.g. "CONNECT always escalates to a human" holds for all
+   inputs, not just the sampled ones.
+
+## Infrastructure — ⭐⭐ → ⭐⭐⭐⭐⭐
+
+**Today.** Honestly the weakest engineering dimension. On `main`: no CI,
+no auth, no rate limiting, no persistence — every restart forgets
+everything. PR #5 (open) closes the first tier: GitHub Actions running
+lint + the full suite, opt-in API keys and rate limiting, and JSON-file
+persistence for router trust scores.
+
+**What ⭐⭐⭐⭐⭐ means.** Someone who isn't the author can deploy AXIOMN,
+watch it run, and trust it: one-command deployment, real storage,
+observability, and secrets handled properly.
+
+**Path.**
+1. Land PR #5 (CI, auth, rate limiting, trust-score persistence).
+2. `Dockerfile` + compose file; a tagged image published from CI.
+3. Structured logging (request ID, intent, route, tool, latency) and a
+   `/metrics` endpoint — this doubles as the foundation for measuring
+   traction.
+4. Replace JSON-file state with SQLite (still zero-ops) behind a storage
+   interface, so Postgres is a config change, not a rewrite.
+5. A deployed reference instance (Fly.io/Railway/VPS) with a health
+   check, so the demo has a URL instead of a `git clone`.
+
+## Produit — ⭐⭐ → ⭐⭐⭐⭐⭐
+
+**Today.** The pipeline is real end-to-end, and the `/ui/` demo showing
+*how* each answer was produced (intent, route, tool, confidence, timing)
+is genuinely the product's identity. But the answers themselves aren't
+real: `cloud_ai` returns a template string, not an LLM response; the
+human queue accepts requests no human will ever see; the Android client
+has never been compiled (no Android SDK in the dev environment).
+
+**What ⭐⭐⭐⭐⭐ means.** A person with a real question gets a real answer,
+on the device they actually carry, and prefers this over opening a chat
+app — because easy things resolve instantly and locally, hard things get
+a visibly better answer, and impossible things reach a human instead of
+being hallucinated.
+
+**Path.**
+1. **Real LLM behind `cloud_ai`** — the single highest-leverage change
+   in the entire roadmap. The `ToolHandler` contract already fits; it
+   needs an API key from the repo owner and a thin client. Everything
+   downstream (product feel, demo credibility, traction) is blocked on
+   answers being real.
+2. A minimal real human queue: even "forward to a Telegram/Discord
+   channel, post the reply back" makes `await_human` honest.
+3. Build and verify the Android app on a real device; fix what the
+   compiler and the round-trip reveal.
+4. Voice on the web demo (the browser's speech APIs) so the "any
+   modality" claim is demonstrable without installing an APK.
+
+## Traction — ⭐ → ⭐⭐⭐⭐⭐
+
+**Today.** Zero users, zero deployments, zero external feedback. One
+star is the floor and it's the honest score.
+
+**What ⭐⭐⭐⭐⭐ means.** Strangers use it, return to it, and the router's
+learned trust scores reflect *their* outcomes, not test fixtures.
+
+**Path.** Code can't create traction, but it removes the blockers, in
+order: real answers (Produit #1) → a public deployed instance
+(Infrastructure #5) → usage telemetry to know what's happening
+(Infrastructure #3) → then distribution: a public demo URL, a
+Show HN / Product Hunt-style writeup built on the routing-transparency
+angle ("watch the system decide who should answer you"), and the SDK
+pitched to builders who need routing, not another chatbot.
+
+## Order of operations
+
+The dependencies above collapse into one sequence:
+
+1. Land PR #5 (infrastructure tier 1).
+2. Real LLM behind `cloud_ai` — unblocks Produit and everything after.
+3. Docker + deployed instance + telemetry.
+4. Async human queue (architecture and honesty of `await_human`).
+5. Verified Android build; voice on the web demo.
+6. Distribution push — only after the demo answers real questions.
+
+Vision (`VISION.md`) and Code hardening (mypy, coverage gate) are
+parallel tracks with no dependencies; they can start any time.

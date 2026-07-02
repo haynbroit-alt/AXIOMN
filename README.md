@@ -168,3 +168,8 @@ network, a real cloud LLM backend). Those are real, larger efforts that
 build on top of the same `Intent -> Route -> Execute` contract
 established here; they're not attempted in this repository because they
 can't be built *and verified* in this environment.
+
+Where the project is headed — target level per dimension (vision,
+architecture, code, infrastructure, product, traction), an honest
+assessment of where each stands today, and the ordered path between the
+two — is in [`ROADMAP.md`](ROADMAP.md).
