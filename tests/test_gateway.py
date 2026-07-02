@@ -52,12 +52,29 @@ def test_handler_reports_model_cost_baseline_and_reason():
     result = handler.run(_intent(difficulty=2))
 
     assert result.success is True
-    assert result.output.startswith("[simulated:claude-haiku]")
+    # The wire model_id (not the display name) reaches the provider client.
+    assert result.output.startswith("[simulated:claude-haiku-4-5]")
     assert result.metadata["model"] == "claude-haiku"
+    assert result.metadata["model_id"] == "claude-haiku-4-5"
     assert result.metadata["provider"] == "anthropic"
     assert result.metadata["cost"] == 0.01
     assert result.metadata["baseline_cost"] == 0.15
     assert "cheapest adequate" in result.metadata["selection_reason"]
+
+
+def test_default_catalog_uses_real_api_model_ids_on_the_wire():
+    # Regression test for the production 404: Anthropic's Messages API
+    # rejects display names like "claude-haiku" — the wire ID must be a
+    # real, current model identifier.
+    by_name = {p.name: p for p in default_catalog().profiles}
+    assert by_name["claude-haiku"].model_id == "claude-haiku-4-5"
+    assert by_name["claude-opus"].model_id == "claude-opus-4-8"
+    assert by_name["gpt-4o"].model_id == "gpt-4o"  # OpenAI's public ID doubles as display
+
+
+def test_model_id_defaults_to_name_when_not_given():
+    profile = ModelProfile(name="local-llama", provider="local", quality=5, cost_per_call=0.0, latency_ms=100)
+    assert profile.model_id == "local-llama"
 
 
 def test_provider_failure_is_an_honest_failure_not_a_fake_answer():

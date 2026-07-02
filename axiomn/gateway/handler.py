@@ -29,13 +29,15 @@ class GatewayHandler:
         profile, reason = self.catalog.select(intent)
         metadata = {
             "model": profile.name,
+            "model_id": profile.model_id,
             "provider": profile.provider,
             "cost": profile.cost_per_call,
             "baseline_cost": self.catalog.flagship().cost_per_call,
             "selection_reason": reason,
         }
         try:
-            output = self.clients[profile.provider].complete(profile.name, intent)
+            # The wire ID, never the display name — providers 404 on the latter.
+            output = self.clients[profile.provider].complete(profile.model_id, intent)
         except Exception as exc:  # provider/network failure -> honest failure, trust feedback
             return ToolResult(
                 output=f"[gateway] {profile.name} failed: {exc}",
