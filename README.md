@@ -188,6 +188,9 @@ take the project over tomorrow:
 - [`ROADMAP.md`](ROADMAP.md) — target level per dimension, an honest
   assessment of where each stands today, the quality bar, and the
   ordered path.
+- [`STRATEGY.md`](STRATEGY.md) — the commercial counterpart: why the
+  project is not for sale yet, the MVP → first use case → traction →
+  choose-the-path sequence, and the kernel/product separation principle.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — the working method: tests for
   every behavior, a regression test for every bug, measurement over
   assumption, systematic review.

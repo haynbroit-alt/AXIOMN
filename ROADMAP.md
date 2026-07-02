@@ -245,7 +245,9 @@ memory footprint, and user satisfaction signals.
 ## Order of operations
 
 The dependencies above collapse into one sequence, which is the
-`Kernel → … → Adoption` trajectory made concrete:
+`Kernel → … → Adoption` trajectory made concrete. Items 1–5 are also
+step 1 of [`STRATEGY.md`](STRATEGY.md) — the "real MVP" that must exist
+before any commercial question is worth asking:
 
 1. Land PR #5 (**Infrastructure** tier 1: CI, auth, persistence).
 2. Real LLM behind `cloud_ai` (**Capabilities**) — unblocks Produit and
