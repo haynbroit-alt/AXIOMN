@@ -40,7 +40,7 @@ Vision → Kernel → Infrastructure → Capabilities → Product → Platform �
 | Infrastructure | CI, auth, persistence, deployment, observability | 🔄 tier 1 in PR #5 |
 | Capabilities | Real backends behind the contracts: a real LLM, a real human queue, real tools | ❌ stubs today |
 | Product | A reference client (web demo, mobile) proving the runtime end-to-end | 🔄 exists, unproven |
-| Platform | A stable, versioned API + SDK that third parties can depend on | 🔄 SDK started, API unversioned |
+| Platform | A stable, versioned API + SDK that third parties can depend on | 🔄 API versioned (`/v1`), SDK targets it; PyPI publication pending |
 | Ecosystem | Plugins: community-contributed classifiers, tools, route profiles, action types | ❌ not started |
 | Adoption | Third-party applications embedding AXIOMN as their routing layer | ❌ not started |
 
@@ -209,8 +209,10 @@ order: real answers (Produit #1) → a public deployed instance
 (Infrastructure #5) → usage telemetry (Infrastructure #3) → then the
 platform steps that make third-party adoption possible rather than just
 hoped for:
-1. **API stability**: version the `/intent` schema and the SDK, publish
-   `axiomn_sdk` to PyPI, document the compatibility promise.
+1. **API stability**: ~~version the `/intent` schema~~ ✅ done — `/v1`
+   is the documented contract, bare paths stay as hidden compatibility
+   aliases, and the SDK targets `/v1`. Remaining: publish `axiomn_sdk`
+   to PyPI and write the compatibility promise down.
 2. **Extensibility as a feature**: entry-point-based plugin discovery so
    a classifier, tool, or action type can be `pip install`ed into a
    running AXIOMN without forking it.
@@ -230,16 +232,18 @@ in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 | Area | Target | Today |
 |---|---|---|
 | Code quality | Coverage > 90% enforced in CI, `mypy --strict` clean, systematic code review | Tests thorough but coverage unmeasured; typed but unenforced; review practiced (PR #4 precedent) but not enforced by branch protection |
-| Architecture | Stable interfaces, independent components, versioned API | Contracts stable and independently tested; API unversioned |
+| Architecture | Stable interfaces, independent components, versioned API | Contracts stable and independently tested; API versioned (`/v1` + hidden aliases) |
 | Performance | Low latency, bounded memory, local execution whenever pertinent | Local route ~instant; never measured under load; no memory profile |
 | Security | Encryption in transit, authentication, secrets management, dependency audit | Auth + rate limiting opt-in in PR #5; no TLS story, no secrets policy, no dependency audit in CI |
 | Documentation | Complete, maintained, accessible: vision, architecture, roadmap, dev + API docs, contribution guides | `VISION.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `CONTRIBUTING.md`, per-module READMEs exist; API docs auto-generated at `/docs`; kept honest in PRs |
 | Ecosystem | Official SDKs, plugins, examples, contribution guides | Python SDK exists (unpublished); no plugin mechanism yet |
 | Reliability | CI/CD, monitoring, alerting, availability objectives | CI arrives in PR #5; no CD, monitoring, or SLOs |
 
-Metrics to collect once telemetry lands (Infrastructure #3), so
-decisions rest on data instead of assumption: response time per route,
-routing precision (chosen route vs. best-known outcome), execution cost,
+First telemetry has landed: `GET /v1/metrics` reports request volume,
+latency (avg/p50/p95), route shares (local/cloud/human), success rate,
+and estimated cost per request. Still to collect, so decisions rest on
+data instead of assumption: per-route latency breakdown,
+routing precision (chosen route vs. best-known outcome),
 memory footprint, and user satisfaction signals.
 
 ## Order of operations
@@ -256,7 +260,7 @@ before any commercial question is worth asking:
 4. ~~Async human queue (**Capabilities**; makes `await_human`
    honest)~~ — ✅ done in-process; a real operator channel remains.
 5. Verified Android build; voice on the web demo (**Product**).
-6. Versioned API + published SDK (**Platform**).
+6. ~~Versioned API~~ (✅ `/v1`) + published SDK (**Platform**).
 7. Plugin discovery for classifiers/tools/actions (**Ecosystem**).
 8. Third-party integrations and the public push (**Adoption**) — only
    after the demo answers real questions.

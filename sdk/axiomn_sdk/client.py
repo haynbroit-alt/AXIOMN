@@ -2,7 +2,7 @@
 
 Deliberately has no dependency on the AXIOMN server package (no FastAPI, no
 langdetect, no embedding model) — it only needs an HTTP endpoint speaking
-the `/intent` contract. Point it at a local dev server, a hosted
+the versioned `/v1` contract. Point it at a local dev server, a hosted
 deployment, or (for tests) an in-process ASGI app via a custom
 `httpx.BaseTransport`.
 """
@@ -95,20 +95,26 @@ class AXIOMNClient:
         self._client = httpx.Client(base_url=base_url, timeout=timeout, transport=transport)
 
     def intent(self, text: str) -> IntentResult:
-        response = self._client.post("/intent", json={"text": text})
+        response = self._client.post("/v1/intent", json={"text": text})
         response.raise_for_status()
         return IntentResult.from_dict(response.json())
 
     def queue_status(self, ticket_id: str) -> QueueTicket:
-        response = self._client.get(f"/queue/{ticket_id}")
+        response = self._client.get(f"/v1/queue/{ticket_id}")
         response.raise_for_status()
         return QueueTicket.from_dict(response.json())
 
     def answer_ticket(self, ticket_id: str, text: str) -> QueueTicket:
         """The operator side: resolve a pending human-queue ticket."""
-        response = self._client.post(f"/queue/{ticket_id}/answer", json={"text": text})
+        response = self._client.post(f"/v1/queue/{ticket_id}/answer", json={"text": text})
         response.raise_for_status()
         return QueueTicket.from_dict(response.json())
+
+    def metrics(self) -> dict:
+        """Aggregate runtime metrics: volume, latency, route shares, cost."""
+        response = self._client.get("/v1/metrics")
+        response.raise_for_status()
+        return response.json()
 
     def wait_for_human(
         self, ticket_id: str, timeout: float = 60.0, poll_interval: float = 0.5

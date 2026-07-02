@@ -92,10 +92,16 @@ the answer but *how AXIOMN decided to produce it* (intent, route, tool,
 confidence, execution time) — or call the API directly:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/intent \
+curl -X POST http://127.0.0.1:8000/v1/intent \
   -H "Content-Type: application/json" \
   -d '{"text": "Explique-moi comment fonctionnent les trous noirs"}'
 ```
+
+`/v1` is the stable, documented contract (see `/docs`); the same
+endpoints answer on unversioned paths as compatibility aliases.
+`GET /v1/metrics` reports what the runtime has actually done — request
+volume, latency (avg/p50/p95), route shares (how much resolved locally
+vs. cloud vs. human), success rate, and estimated cost per request.
 
 ```json
 {
