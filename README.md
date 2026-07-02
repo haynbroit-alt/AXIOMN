@@ -1,13 +1,15 @@
 # AXIOMN
 
-**The universal intent mediation layer.**
+**An open-source intent mediation runtime.**
 
-AXIOMN turns a human intent — expressed in any language, as text today,
-as voice/screen/gesture tomorrow — into a routed, resolved action. It is
-not an assistant, an app, or a single model: it's the layer that decides
-*how* a request should be answered, then hands it to whichever system
-(a local model, a cloud model, a human expert) is the best fit, instead
-of being the answer itself.
+AXIOMN transforms a human intent — expressed in any language, as text
+today, as voice/screen/gesture tomorrow — into executable actions,
+independently of the AI model, the operating system, or the service
+provider behind it. It is not an assistant, an app, or a single model:
+it's the runtime that decides *how* a request should be answered, then
+hands it to whichever system (a local model, a cloud model, a human
+expert) is the best fit, instead of being the answer itself — a layer
+other software builds on, not a destination.
 
 This repository is a real, testable slice of that idea: a full
 `Intent Engine -> Router -> Execution Layer -> Action Engine` pipeline, a
@@ -168,3 +170,19 @@ network, a real cloud LLM backend). Those are real, larger efforts that
 build on top of the same `Intent -> Route -> Execute` contract
 established here; they're not attempted in this repository because they
 can't be built *and verified* in this environment.
+
+The repository's reference documents, written so another team could
+take the project over tomorrow:
+
+- [`VISION.md`](VISION.md) — the problem, the thesis, and the four
+  invariants that never change (intent as single entry point,
+  interchangeable capabilities, user-owned data, observability).
+- [`ARCHITECTURE.md`](ARCHITECTURE.md) — the layer stack, the kernel
+  contracts, and the rules that keep upper layers from breaking lower
+  ones.
+- [`ROADMAP.md`](ROADMAP.md) — target level per dimension, an honest
+  assessment of where each stands today, the quality bar, and the
+  ordered path.
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — the working method: tests for
+  every behavior, a regression test for every bug, measurement over
+  assumption, systematic review.
