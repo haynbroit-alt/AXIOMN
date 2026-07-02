@@ -33,6 +33,8 @@ class MetricsCollector:
         self._recent_latencies: deque[float] = deque(maxlen=latency_window)
         self._latency_sum = 0.0
         self._cost_sum = 0.0
+        self._baseline_cost_sum = 0.0
+        self._by_model: Counter[str] = Counter()
 
     def record(
         self,
@@ -43,6 +45,8 @@ class MetricsCollector:
         latency_ms: float,
         success: bool,
         cost: float = 0.0,
+        baseline_cost: float | None = None,
+        model: str | None = None,
     ) -> None:
         with self._lock:
             self._total += 1
@@ -53,6 +57,13 @@ class MetricsCollector:
             self._recent_latencies.append(latency_ms)
             self._latency_sum += latency_ms
             self._cost_sum += cost
+            # What the request would have cost with no routing (everything to
+            # the flagship model). Measured savings = baseline - actual; when
+            # no baseline applies (e.g. human escalation), it equals cost and
+            # contributes zero savings — never an invented number.
+            self._baseline_cost_sum += cost if baseline_cost is None else baseline_cost
+            if model:
+                self._by_model[model] += 1
 
     def snapshot(self) -> dict:
         with self._lock:
@@ -79,6 +90,17 @@ class MetricsCollector:
                     "total": round(self._cost_sum, 4),
                     "avg_per_request": round(self._cost_sum / total, 6),
                 },
+                "savings": {
+                    "baseline_total": round(self._baseline_cost_sum, 4),
+                    "actual_total": round(self._cost_sum, 4),
+                    "saved": round(self._baseline_cost_sum - self._cost_sum, 4),
+                    "rate": round(
+                        (self._baseline_cost_sum - self._cost_sum) / self._baseline_cost_sum, 4
+                    )
+                    if self._baseline_cost_sum
+                    else 0.0,
+                },
+                "models": dict(sorted(self._by_model.items())),
                 "categories": dict(sorted(self._by_category.items())),
                 "languages": dict(sorted(self._by_language.items())),
             }

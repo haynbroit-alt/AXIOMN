@@ -81,10 +81,18 @@ class HumanQueueHandler:
         )
 
 
-def default_registry(human_queue: HumanQueue | None = None) -> ToolRegistry:
+def default_registry(
+    human_queue: HumanQueue | None = None,
+    cloud_handler: ToolHandler | None = None,
+) -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(Tool(name="local_heuristic", route=Route.LOCAL_AI, handler=LocalHeuristicHandler()))
-    registry.register(Tool(name="cloud_llm_stub", route=Route.CLOUD_AI, handler=CloudHandlerStub()))
+    if cloud_handler is not None:
+        # e.g. the Gateway (axiomn/gateway): multi-model, cost/quality/latency
+        # selection across providers, instead of a single hardcoded backend.
+        registry.register(Tool(name="gateway", route=Route.CLOUD_AI, handler=cloud_handler))
+    else:
+        registry.register(Tool(name="cloud_llm_stub", route=Route.CLOUD_AI, handler=CloudHandlerStub()))
     registry.register(
         Tool(
             name="human_expert_queue",

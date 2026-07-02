@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from ..action.engine import ActionEngine
 from ..execution.engine import ExecutionEngine
+from ..gateway.handler import build_default_gateway
 from ..intent.engine import IntentEngine
 from ..metrics.collector import MetricsCollector
 from ..models.tools import default_registry
@@ -37,7 +38,10 @@ app = FastAPI(
 intent_engine = IntentEngine()
 router = Router()
 human_queue = HumanQueue()
-execution_engine = ExecutionEngine(registry=default_registry(human_queue), router=router)
+gateway = build_default_gateway()
+execution_engine = ExecutionEngine(
+    registry=default_registry(human_queue, cloud_handler=gateway), router=router
+)
 action_engine = ActionEngine()
 metrics = MetricsCollector()
 
@@ -68,6 +72,8 @@ class IntentResponse(BaseModel):
     ambiguity: float
     route: str
     tool: str
+    model: str | None = None  # which model the Gateway chose, when cloud-routed
+    model_reason: str | None = None  # and why — the choice is always explainable
     result: str
     execution_time_ms: float
     action: ActionResponse
@@ -87,13 +93,25 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
     route = router.route(intent)
     outcome = execution_engine.execute(route, intent)
     action = action_engine.decide(intent, route, outcome.output, metadata=outcome.metadata)
+    cost = outcome.metadata.get("cost", _cost_of(route))
+    if route == Route.HUMAN_QUEUE:
+        # A human isn't replaceable by the flagship model — no savings claim.
+        baseline_cost = cost
+    else:
+        # What this request would have cost with no routing: everything to
+        # the Gateway's flagship model. That's the measured-savings baseline.
+        baseline_cost = outcome.metadata.get(
+            "baseline_cost", gateway.catalog.flagship().cost_per_call
+        )
     metrics.record(
         category=intent.category.value,
         language=intent.language,
         route=route.value,
         latency_ms=outcome.latency_ms,
         success=outcome.success,
-        cost=_cost_of(route),
+        cost=cost,
+        baseline_cost=baseline_cost,
+        model=outcome.metadata.get("model"),
     )
     return IntentResponse(
         intent=intent.category.value,
@@ -104,6 +122,8 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
         ambiguity=intent.ambiguity,
         route=route.value,
         tool=outcome.tool_name,
+        model=outcome.metadata.get("model"),
+        model_reason=outcome.metadata.get("selection_reason"),
         result=outcome.output,
         execution_time_ms=round(outcome.latency_ms, 2),
         action=ActionResponse(type=action.type.value, payload=action.payload),

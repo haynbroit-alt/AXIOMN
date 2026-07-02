@@ -134,10 +134,14 @@
       const ticketLine = awaiting && data.action.payload.ticket_id
         ? `<div><b>Ticket:</b> ${data.action.payload.ticket_id}</div>`
         : "";
+      const modelLine = data.model
+        ? `<div><b>Model:</b> ${data.model} &mdash; ${data.model_reason || ""}</div>`
+        : "";
       thoughtEl.innerHTML = `
         <div><b>Intent:</b> ${data.intent} (confidence ${data.confidence}, ambiguity ${data.ambiguity})</div>
         <div><b>Language:</b> ${data.language} &middot; <b>Difficulty:</b> ${data.difficulty}/10</div>
         <div><b>Route:</b> ${data.route} &middot; <b>Tool:</b> ${data.tool}</div>
+        ${modelLine}
         <div><b>Action:</b> ${data.action.type}</div>
         <div><b>Execution time:</b> ${data.execution_time_ms} ms</div>
         ${ticketLine}

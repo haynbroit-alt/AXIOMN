@@ -53,6 +53,16 @@ The kernel stays general; the *product* is specific. Investors and
 customers understand a product that answers a precise need far more
 easily than a very general technology.
 
+**Decision: the first product is AXIOMN Gateway** (the multi-model
+orchestration wedge). The pitch, kept deliberately verifiable: *"Plug in
+one API. AXIOMN automatically picks the best model for every request —
+and shows you why."* The promise is optimization and transparency, not a
+percentage: savings figures come from `GET /v1/metrics` measured on real
+traffic, and only become marketing claims once real usage supports them.
+The deeper moat is **portability** — switching providers is a catalog
+edit, not an application rewrite. The "Intent OS" ambition stays
+long-term vision (`VISION.md`), never the pitch.
+
 ### 3. Create traction
 
 The proof that step 2 worked, in ascending order of strength:

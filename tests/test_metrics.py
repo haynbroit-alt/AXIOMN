@@ -67,6 +67,41 @@ def test_latency_window_is_bounded():
     assert snap["latency_ms"]["avg"] == 2.5
 
 
+def test_savings_are_measured_against_the_baseline():
+    collector = MetricsCollector()
+    # Routed to a cheap model: would have cost 0.15 on the flagship.
+    _record(collector, cost=0.01, baseline_cost=0.15, model="claude-haiku")
+    # Resolved locally for free: flagship baseline still applies.
+    _record(collector, cost=0.0, baseline_cost=0.15)
+    # Human escalation: no savings claim, baseline == cost.
+    _record(collector, route="human_queue", cost=0.5, baseline_cost=0.5)
+
+    savings = collector.snapshot()["savings"]
+    assert savings["baseline_total"] == 0.8
+    assert savings["actual_total"] == 0.51
+    assert savings["saved"] == 0.29
+    assert savings["rate"] == round(0.29 / 0.8, 4)
+
+
+def test_savings_default_to_zero_when_no_baseline_is_given():
+    collector = MetricsCollector()
+    _record(collector, cost=0.02)  # baseline defaults to cost -> no claim
+
+    savings = collector.snapshot()["savings"]
+    assert savings["saved"] == 0.0
+    assert savings["rate"] == 0.0
+
+
+def test_model_choices_are_counted():
+    collector = MetricsCollector()
+    _record(collector, model="claude-haiku")
+    _record(collector, model="claude-haiku")
+    _record(collector, model="gpt-4o")
+    _record(collector)  # local route: no model
+
+    assert collector.snapshot()["models"] == {"claude-haiku": 2, "gpt-4o": 1}
+
+
 def test_categories_and_languages_are_counted():
     collector = MetricsCollector()
     _record(collector, category="learn", language="fr")

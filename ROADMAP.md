@@ -38,7 +38,7 @@ Vision → Kernel → Infrastructure → Capabilities → Product → Platform �
 |---|---|---|
 | Kernel | The `Intent → Route → Execute → Act` pipeline and its contracts | ✅ started (this repo) |
 | Infrastructure | CI, auth, persistence, deployment, observability | 🔄 tier 1 in PR #5 |
-| Capabilities | Real backends behind the contracts: a real LLM, a real human queue, real tools | ❌ stubs today |
+| Capabilities | Real backends behind the contracts: a real LLM, a real human queue, real tools | 🔄 Gateway + Anthropic/OpenAI adapters shipped (contract-tested); real calls need API keys; human queue delivers in-process |
 | Product | A reference client (web demo, mobile) proving the runtime end-to-end | 🔄 exists, unproven |
 | Platform | A stable, versioned API + SDK that third parties can depend on | 🔄 API versioned (`/v1`), SDK targets it; PyPI publication pending |
 | Ecosystem | Plugins: community-contributed classifiers, tools, route profiles, action types | ❌ not started |
@@ -177,11 +177,14 @@ a visibly better answer, and impossible things reach a human instead of
 being hallucinated.
 
 **Path.**
-1. **Real LLM behind `cloud_ai`** — the single highest-leverage change
-   in the entire roadmap. The `ToolHandler` contract already fits; it
-   needs an API key from the repo owner and a thin client. Everything
-   downstream (product feel, demo credibility, traction) is blocked on
-   answers being real.
+1. **Real LLM behind `cloud_ai`** — 🔄 the Gateway now sits on the
+   cloud route with thin Anthropic and OpenAI adapters
+   (`axiomn/gateway/providers.py`), selected per request by
+   cost/quality/latency and contract-tested against each vendor's exact
+   request/response shape. What remains is the part only the owner can
+   provide: real API keys (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` env
+   vars) and a real-call verification. Until then, answers are honestly
+   labeled `[simulated:...]`.
 2. A real operator channel on the human queue: the ticket mechanism and
    operator API exist (`GET /queue`, `POST /queue/{id}/answer`); what's
    missing is a human actually watching it — even "forward new tickets

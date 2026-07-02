@@ -33,6 +33,39 @@ def test_connect_intent_escalates_to_human_and_yields_await_human_action():
     assert data["action"]["type"] == "await_human"
 
 
+def test_cloud_routed_request_goes_through_the_gateway_with_explainable_model_choice():
+    # A crisp SOLVE request (fix/debug/error keywords) long enough plus a
+    # "distributed system" complexity marker -> difficulty ~6: beyond
+    # local_ai's capability, well within cloud_ai's, unambiguous enough
+    # not to escalate to a human.
+    text = (
+        "Help me debug and fix the intermittent caching error in my distributed system "
+        "where repeated requests sometimes return stale data after a node restarts"
+    )
+    data = client.post("/intent", json={"text": text}).json()
+
+    assert data["route"] == "cloud_ai"
+    assert data["tool"] == "gateway"
+    assert data["model"]  # which model was chosen...
+    assert data["model_reason"]  # ...and why — the choice is always explainable
+    # No API keys in the test environment: the answer must announce itself
+    # as simulated, never pass for a real model's.
+    assert data["result"].startswith("[simulated:")
+
+
+def test_locally_resolved_requests_report_measured_savings():
+    before = client.get("/v1/metrics").json()
+    before_saved = before.get("savings", {}).get("saved", 0.0)
+
+    client.post("/intent", json={"text": "Explain how black holes form"})
+
+    savings = client.get("/v1/metrics").json()["savings"]
+    # A local resolution costs 0 but would have cost flagship money in the
+    # common everything-to-the-premium-model setup: measured, not claimed.
+    assert savings["saved"] > before_saved
+    assert 0.0 < savings["rate"] <= 1.0
+
+
 def test_intent_endpoint_rejects_missing_text():
     response = client.post("/intent", json={})
     assert response.status_code == 422

@@ -36,6 +36,8 @@ class IntentResult:
     result: str
     execution_time_ms: float
     action: Action
+    model: Optional[str] = None  # which model the Gateway chose, when cloud-routed
+    model_reason: Optional[str] = None  # and why
 
     @classmethod
     def from_dict(cls, data: dict) -> "IntentResult":
@@ -51,6 +53,8 @@ class IntentResult:
             result=data["result"],
             execution_time_ms=data["execution_time_ms"],
             action=Action.from_dict(data["action"]),
+            model=data.get("model"),
+            model_reason=data.get("model_reason"),
         )
 
 

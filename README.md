@@ -1,15 +1,33 @@
 # AXIOMN
 
-**An open-source intent mediation runtime.**
+**Plug in one API. AXIOMN automatically picks the best model for every
+request — and shows you why.**
 
-AXIOMN transforms a human intent — expressed in any language, as text
-today, as voice/screen/gesture tomorrow — into executable actions,
-independently of the AI model, the operating system, or the service
-provider behind it. It is not an assistant, an app, or a single model:
-it's the runtime that decides *how* a request should be answered, then
-hands it to whichever system (a local model, a cloud model, a human
-expert) is the best fit, instead of being the answer itself — a layer
-other software builds on, not a destination.
+**AXIOMN Gateway** optimizes your LLM cost and performance with
+intelligent, transparent routing: each request goes to the cheapest
+model that's good enough — a premium model when the request needs it, a
+local resolver when it doesn't, a human when nothing else is honest.
+Every response says which model was chosen and why, and
+`GET /v1/metrics` measures what the routing saves you against the
+common no-routing setup where every request hits the premium model. No
+invented numbers: the savings figure is computed from your own traffic.
+
+The other promise is **portability**: switching providers
+(OpenAI ↔ Anthropic ↔ a local model) is a catalog edit, not an
+application rewrite — your code only ever speaks to AXIOMN
+(`axiomn/gateway/`; without API keys configured, cloud answers are
+explicitly labeled `[simulated:...]`, never passed off as real).
+
+---
+
+Under the Gateway is the **AXIOMN runtime**: it transforms a human
+intent — expressed in any language, as text today, as
+voice/screen/gesture tomorrow — into executable actions, independently
+of the AI model, the operating system, or the service provider behind
+it. It is not an assistant, an app, or a single model: it's the runtime
+that decides *how* a request should be answered, then hands it to
+whichever system is the best fit, instead of being the answer itself —
+a layer other software builds on, not a destination.
 
 This repository is a real, testable slice of that idea: a full
 `Intent Engine -> Router -> Execution Layer -> Action Engine` pipeline, a
