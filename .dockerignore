@@ -8,3 +8,4 @@ tests
 sdk/tests
 *.md
 router_state.json
+fly.toml

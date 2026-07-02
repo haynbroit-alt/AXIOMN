@@ -204,6 +204,11 @@ docker build -t axiomn . && docker run -p 8000:8000 \
 docker compose up
 ```
 
+Deploying to Fly.io uses the repository's own `Dockerfile` and
+`fly.toml` (proxy on `internal_port = 8000`, health check on
+`/v1/health`). Set secrets out-of-band, never in the repo:
+`fly secrets set AXIOMN_API_KEYS=... ANTHROPIC_API_KEY=sk-...`.
+
 CI (`.github/workflows/ci.yml`) runs lint, the full test suite with a
 **90% coverage floor** (currently at 99%), and builds + smoke-tests the
 Docker image on every push and pull request. The routing-quality
