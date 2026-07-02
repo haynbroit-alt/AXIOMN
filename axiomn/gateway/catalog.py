@@ -23,11 +23,20 @@ from ..intent.schema import Intent
 
 @dataclass
 class ModelProfile:
-    name: str  # e.g. "claude-haiku"
+    name: str  # display name, e.g. "claude-haiku" — what users and metrics see
     provider: str  # e.g. "anthropic" — the key into the Gateway's client map
     quality: int  # 1-10, highest intent difficulty it reliably handles
     cost_per_call: float  # relative cost units, operator-configured
     latency_ms: float  # expected latency
+    # The exact identifier the provider's API expects on the wire (e.g.
+    # "claude-haiku-4-5"). Display names are not API model IDs — sending one
+    # to a real provider returns 404 not_found_error. Defaults to `name` for
+    # providers (like OpenAI) whose public IDs read well enough to display.
+    model_id: str = ""
+
+    def __post_init__(self):
+        if not self.model_id:
+            self.model_id = self.name
 
 
 class ModelCatalog:
@@ -75,8 +84,17 @@ def default_catalog() -> ModelCatalog:
     switching vendors is a catalog edit, not an application rewrite."""
     return ModelCatalog(
         [
-            ModelProfile(name="claude-haiku", provider="anthropic", quality=6, cost_per_call=0.01, latency_ms=400),
-            ModelProfile(name="gpt-4o", provider="openai", quality=8, cost_per_call=0.08, latency_ms=900),
-            ModelProfile(name="claude-opus", provider="anthropic", quality=9, cost_per_call=0.15, latency_ms=1200),
+            ModelProfile(
+                name="claude-haiku", provider="anthropic", quality=6,
+                cost_per_call=0.01, latency_ms=400, model_id="claude-haiku-4-5",
+            ),
+            ModelProfile(
+                name="gpt-4o", provider="openai", quality=8,
+                cost_per_call=0.08, latency_ms=900,
+            ),
+            ModelProfile(
+                name="claude-opus", provider="anthropic", quality=9,
+                cost_per_call=0.15, latency_ms=1200, model_id="claude-opus-4-8",
+            ),
         ]
     )
