@@ -24,6 +24,7 @@ from ..intent.engine import IntentEngine
 from ..intent.llm_fallback import build_default_fallback_classifier
 from ..metrics.collector import MetricsCollector
 from ..models.tools import default_registry
+from ..sandbox import build_verity_handler
 from ..queue.engine import (
     HumanQueue,
     Ticket,
@@ -53,8 +54,16 @@ else:
     intent_engine = IntentEngine(
         classifier=build_default_fallback_classifier(gateway.catalog, gateway.clients)
     )
+# Opt-in: with AXIOMN_VERITY_URL set, code-execution (AUTOMATE) intents run in
+# VERITY's isolated sandbox and come back with an Ed25519 proof instead of a
+# local heuristic answer. Unset -> None -> the sandbox tool is not registered
+# and the runtime behaves exactly as before.
+sandbox_handler = build_verity_handler()
 execution_engine = ExecutionEngine(
-    registry=default_registry(human_queue, cloud_handler=gateway), router=router
+    registry=default_registry(
+        human_queue, cloud_handler=gateway, sandbox_handler=sandbox_handler
+    ),
+    router=router,
 )
 action_engine = ActionEngine()
 metrics = MetricsCollector()
