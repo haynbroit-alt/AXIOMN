@@ -6,12 +6,23 @@ client = TestClient(app)
 
 
 def test_health_reports_status_and_serving_version():
-    data = client.get("/health").json()
+    response = client.get("/health")
+    data = response.json()
     assert data["status"] == "ok"
     # The deploy-observability contract: health always names the build
     # version actually serving, so "did the redeploy take?" is answerable
     # from outside.
     assert data["version"] == "0.2.1"
+    # Honesty signal: without provider keys the runtime answers in simulated
+    # mode, and health says so instead of hiding it.
+    assert data["provider_mode"] in {"real", "simulated", "mixed"}
+    # Every response carries a correlation id from the request-context middleware.
+    assert response.headers["X-Request-ID"]
+
+
+def test_request_id_is_echoed_when_supplied():
+    response = client.get("/health", headers={"X-Request-ID": "trace-42"})
+    assert response.headers["X-Request-ID"] == "trace-42"
 
 
 def test_health_includes_image_ref_when_platform_provides_one(monkeypatch):

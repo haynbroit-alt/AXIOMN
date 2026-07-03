@@ -102,7 +102,7 @@ class SemanticIntentClassifier:
 
         ranked = sorted(best_per_category.values(), reverse=True)
         top_sim, runner_up_sim = ranked[0], ranked[1]
-        best_category = max(best_per_category, key=best_per_category.get)
+        best_category = max(best_per_category, key=lambda c: best_per_category[c])
 
         confidence = round(max(0.0, min(1.0, (top_sim + 1) / 2)), 2)
         # A small gap between the best and second-best category means the

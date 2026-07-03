@@ -84,9 +84,24 @@ class HumanQueueHandler:
 def default_registry(
     human_queue: HumanQueue | None = None,
     cloud_handler: ToolHandler | None = None,
+    sandbox_handler: ToolHandler | None = None,
 ) -> ToolRegistry:
     registry = ToolRegistry()
     registry.register(Tool(name="local_heuristic", route=Route.LOCAL_AI, handler=LocalHeuristicHandler()))
+    if sandbox_handler is not None:
+        # VERITY's isolated "Sandbox sécurisé" (see axiomn/sandbox): when the
+        # runtime opts in, AUTOMATE intents routed locally run as sandboxed,
+        # proof-signed code instead of a heuristic text answer. Registered as a
+        # specialist so it only claims AUTOMATE; everything else still resolves
+        # through local_heuristic. Absent this handler, behavior is unchanged.
+        registry.register(
+            Tool(
+                name="verity_sandbox",
+                route=Route.LOCAL_AI,
+                handler=sandbox_handler,
+                affinity={IntentCategory.AUTOMATE},
+            )
+        )
     if cloud_handler is not None:
         # e.g. the Gateway (axiomn/gateway): multi-model, cost/quality/latency
         # selection across providers, instead of a single hardcoded backend.

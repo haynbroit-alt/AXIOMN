@@ -10,12 +10,17 @@ SDK targets. The same endpoints also answer on unversioned paths (`/intent`,
 kernel-emitted `status_url` pointer; they are hidden from the schema.
 """
 import os
+import time
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+
+from ..observability import configure_logging, logger, request_id_var
 
 from ..action.engine import ActionEngine
 from ..execution.engine import ExecutionEngine
@@ -24,6 +29,7 @@ from ..intent.engine import IntentEngine
 from ..intent.llm_fallback import build_default_fallback_classifier
 from ..metrics.collector import MetricsCollector
 from ..models.tools import default_registry
+from ..sandbox import build_verity_handler
 from ..queue.engine import (
     HumanQueue,
     Ticket,
@@ -32,6 +38,8 @@ from ..queue.engine import (
 )
 from ..router.router import Route, Router
 from .security import RateLimiter, require_api_key
+
+configure_logging()
 
 app = FastAPI(
     title="AXIOMN",
@@ -53,8 +61,16 @@ else:
     intent_engine = IntentEngine(
         classifier=build_default_fallback_classifier(gateway.catalog, gateway.clients)
     )
+# Opt-in: with AXIOMN_VERITY_URL set, code-execution (AUTOMATE) intents run in
+# VERITY's isolated sandbox and come back with an Ed25519 proof instead of a
+# local heuristic answer. Unset -> None -> the sandbox tool is not registered
+# and the runtime behaves exactly as before.
+sandbox_handler = build_verity_handler()
 execution_engine = ExecutionEngine(
-    registry=default_registry(human_queue, cloud_handler=gateway), router=router
+    registry=default_registry(
+        human_queue, cloud_handler=gateway, sandbox_handler=sandbox_handler
+    ),
+    router=router,
 )
 action_engine = ActionEngine()
 metrics = MetricsCollector()
@@ -85,6 +101,42 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type", "X-API-Key"],
 )
+
+@app.middleware("http")
+async def request_context(request: Request, call_next):
+    """Tag every request with an id and emit one structured access log line.
+
+    The id is taken from an inbound ``X-Request-ID`` when present (so it can be
+    threaded through from an upstream proxy) or minted here, exposed back in the
+    response header, and bound into the log context so decision logs emitted
+    while serving carry the same id.
+    """
+    rid = request.headers.get("x-request-id") or uuid.uuid4().hex
+    token = request_id_var.set(rid)
+    start = time.perf_counter()
+    try:
+        response: Response = await call_next(request)
+    except Exception:
+        logger.exception(
+            "request.error",
+            extra={"method": request.method, "path": request.url.path},
+        )
+        raise
+    finally:
+        request_id_var.reset(token)
+    elapsed_ms = round((time.perf_counter() - start) * 1000, 2)
+    response.headers["X-Request-ID"] = rid
+    logger.info(
+        "request.handled",
+        extra={
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "latency_ms": elapsed_ms,
+        },
+    )
+    return response
+
 
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.is_dir():
@@ -132,7 +184,15 @@ def health() -> dict:
     `build` is the container image reference when the platform provides
     one (e.g. Fly.io's FLY_IMAGE_REF), absent otherwise.
     """
-    payload = {"status": "ok", "version": app.version}
+    payload = {
+        "status": "ok",
+        "version": app.version,
+        # Ops-visible honesty signal: 'simulated'/'mixed' means some answers are
+        # placeholders, not real model output. Lets a monitor catch a deploy
+        # that came up without provider keys instead of discovering it in a
+        # user-facing `[simulated:...]` answer.
+        "provider_mode": gateway.provider_mode(),
+    }
     image_ref = os.environ.get("FLY_IMAGE_REF")
     if image_ref:
         payload["build"] = image_ref
@@ -168,6 +228,23 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
         cost=cost,
         baseline_cost=baseline_cost,
         model=outcome.metadata.get("model"),
+    )
+    # The decision, as a structured, queryable record: this is what makes the
+    # runtime's routing auditable after the fact ("why did this go to a human?
+    # what did the flagship baseline it against?").
+    logger.info(
+        "intent.routed",
+        extra={
+            "category": intent.category.value,
+            "language": intent.language,
+            "route": route.value,
+            "tool": outcome.tool_name,
+            "model": outcome.metadata.get("model"),
+            "success": outcome.success,
+            "cost": cost,
+            "baseline_cost": baseline_cost,
+            "latency_ms": round(outcome.latency_ms, 2),
+        },
     )
     return IntentResponse(
         intent=intent.category.value,

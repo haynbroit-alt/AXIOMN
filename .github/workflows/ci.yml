@@ -24,6 +24,9 @@ jobs:
       - name: Lint
         run: ruff check axiomn sdk tests
 
+      - name: Type check
+        run: mypy
+
       - name: Test with coverage floor
         run: pytest -q --cov=axiomn --cov=sdk/axiomn_sdk --cov-fail-under=90
 
