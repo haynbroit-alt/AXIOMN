@@ -212,6 +212,10 @@ Deploying to Fly.io uses the repository's own `Dockerfile` and
 `fly.toml` (proxy on `internal_port = 8000`, health check on
 `/v1/health`). Set secrets out-of-band, never in the repo:
 `fly secrets set AXIOMN_API_KEYS=... ANTHROPIC_API_KEY=sk-...`.
+Deploy either by hand (`fly deploy`) or automatically: the
+`.github/workflows/deploy.yml` workflow runs `flyctl deploy` on every
+push to `main` (and on manual dispatch) once a `FLY_API_TOKEN` repo
+secret is set (`fly tokens create deploy`).
 
 CI (`.github/workflows/ci.yml`) runs lint, the full test suite with a
 **90% coverage floor** (currently at 99%), and builds + smoke-tests the
