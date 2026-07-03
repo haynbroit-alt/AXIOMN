@@ -196,6 +196,7 @@ need zero setup. Set these before exposing AXIOMN beyond your machine:
 | `AXIOMN_LLM_CLASSIFIER` | `1` (enabled) | When the keyword heuristic can't read a request (UNKNOWN or near-tie), the Gateway's **cheapest** model classifies it by meaning instead of dead-ending it in the human queue. Fail-open: without provider keys, behavior is identical to the heuristic alone. Set `0` to disable. |
 | `AXIOMN_VERITY_URL` | unset (off) | When set, code-execution (`AUTOMATE`) intents run in VERITY's isolated sandbox and return an Ed25519-signed proof (see `UNIFIED_ARCHITECTURE.md`). Fail-open: an unreachable sandbox degrades the route, never crashes the runtime. |
 | `AXIOMN_LOG_FORMAT`, `AXIOMN_LOG_LEVEL` | `json`, `INFO` | Structured logging. Each line is a JSON object with a request id and, for routing decisions, the route/model/cost/latency — queryable in a log aggregator. Set `AXIOMN_LOG_FORMAT=text` for human-readable local dev. |
+| `AXIOMN_AUDIT_URL` | unset (log-only) | The AXIOMN→SIOS edge: every decision is emitted as a SHA-256-hashed audit event (the user's text is hashed, never stored — RGPD). Always logged; when set, also POSTed to a SIOS ingest endpoint. Fail-open: an unreachable auditor degrades to log-only, never breaks a request. |
 
 The SDK passes the key with `AXIOMNClient(api_key="...")`.
 

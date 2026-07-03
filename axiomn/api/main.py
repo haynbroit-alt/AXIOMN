@@ -20,6 +20,7 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from ..audit import build_audit_sink, build_event
 from ..observability import configure_logging, logger, request_id_var
 
 from ..action.engine import ActionEngine
@@ -74,6 +75,11 @@ execution_engine = ExecutionEngine(
 )
 action_engine = ActionEngine()
 metrics = MetricsCollector()
+# The AXIOMN -> SIOS edge: every decision is emitted as a SHA-256-hashed audit
+# event. Log-only by default; also POSTs to a SIOS ingest endpoint when
+# AXIOMN_AUDIT_URL is set (fail-open — the auditor being down never breaks a
+# request). See axiomn/audit.py.
+audit_sink = build_audit_sink()
 rate_limiter = RateLimiter(max_requests=int(os.environ.get("AXIOMN_RATE_LIMIT_PER_MINUTE", "60")))
 
 
@@ -229,22 +235,25 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
         baseline_cost=baseline_cost,
         model=outcome.metadata.get("model"),
     )
-    # The decision, as a structured, queryable record: this is what makes the
-    # runtime's routing auditable after the fact ("why did this go to a human?
-    # what did the flagship baseline it against?").
-    logger.info(
-        "intent.routed",
-        extra={
-            "category": intent.category.value,
-            "language": intent.language,
-            "route": route.value,
-            "tool": outcome.tool_name,
-            "model": outcome.metadata.get("model"),
-            "success": outcome.success,
-            "cost": cost,
-            "baseline_cost": baseline_cost,
-            "latency_ms": round(outcome.latency_ms, 2),
-        },
+    # The decision as a tamper-evident, auditable record — the AXIOMN -> SIOS
+    # edge. The user's text is hashed, never stored (RGPD); the event carries
+    # the decision, its cost baseline, and any VERITY proof, plus a SHA-256
+    # content hash SIOS can verify independently.
+    audit_sink.emit(
+        build_event(
+            payload_text=payload.text,
+            category=intent.category.value,
+            language=intent.language,
+            route=route.value,
+            tool=outcome.tool_name,
+            success=outcome.success,
+            cost=cost,
+            baseline_cost=baseline_cost,
+            latency_ms=outcome.latency_ms,
+            model=outcome.metadata.get("model"),
+            model_reason=outcome.metadata.get("selection_reason"),
+            proof=outcome.metadata.get("verity"),
+        )
     )
     return IntentResponse(
         intent=intent.category.value,
