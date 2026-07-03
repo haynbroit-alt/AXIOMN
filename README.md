@@ -146,6 +146,37 @@ tickets at `GET /queue` and resolves one with
 this automatically: the ⏳ placeholder is replaced by the human's answer
 the moment it arrives, without a reload.
 
+### Estimate your savings on your own traffic
+
+Before integrating — or spending a cent — see what routing would save you.
+`POST /v1/estimate` takes a batch of your representative prompts, classifies
+and routes each one exactly as it would live, and prices the result against the
+no-routing baseline (everything to the flagship model). Nothing is executed and
+no model is called, so **it works with zero API keys configured**:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/estimate \
+  -H "Content-Type: application/json" \
+  -d '{"texts": ["Explain how black holes form", "hi", "reset my password"]}'
+```
+
+```json
+{
+  "summary": {
+    "requests": 3,
+    "projected_cost": 0.03,
+    "baseline_cost": 0.09,
+    "saved": 0.06,
+    "savings_rate": 0.6667,
+    "by_route": { "local_ai": 2, "cloud_ai": 1 }
+  },
+  "items": [ { "text": "...", "route": "local_ai", "cost": 0.0, "baseline_cost": 0.03 } ]
+}
+```
+
+The savings figure is computed from *your* traffic, not a marketing number —
+the same honesty rule as `GET /v1/metrics`.
+
 ### SDK usage
 
 ```python

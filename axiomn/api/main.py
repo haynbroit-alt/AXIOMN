@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ..audit import build_audit_sink, build_event
+from ..gateway.estimate import EstimateRow, estimate_savings
 from ..observability import configure_logging, logger, request_id_var
 
 from ..action.engine import ActionEngine
@@ -270,6 +271,47 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
         execution_time_ms=round(outcome.latency_ms, 2),
         action=ActionResponse(type=action.type.value, payload=action.payload),
     )
+
+
+class EstimateRequest(BaseModel):
+    texts: list[str]
+
+
+class EstimateItem(BaseModel):
+    text: str
+    route: str
+    cost: float
+    baseline_cost: float
+
+
+class EstimateResponse(BaseModel):
+    summary: dict
+    items: list[EstimateItem]
+
+
+@api.post("/estimate", response_model=EstimateResponse)
+def estimate(payload: EstimateRequest) -> EstimateResponse:
+    """Dry-run savings on your own traffic — no execution, no provider keys.
+
+    Give a batch of representative prompts; AXIOMN classifies and routes each
+    (the exact decision it would make live) and prices it against the no-routing
+    baseline (everything to the flagship model). Returns the per-request routes
+    and an aggregate projected-vs-baseline savings report — computed from your
+    traffic, not a marketing figure. Nothing is executed and no model is called,
+    so it works with zero API keys configured.
+    """
+    flagship_cost = gateway.catalog.flagship().cost_per_call
+    rows: list[EstimateRow] = []
+    items: list[EstimateItem] = []
+    for text in payload.texts:
+        intent = intent_engine.classify(text)
+        route = router.route(intent)
+        cost = _cost_of(route)
+        rows.append(EstimateRow(route=route.value, cost=cost, baseline_cost=flagship_cost))
+        items.append(
+            EstimateItem(text=text, route=route.value, cost=cost, baseline_cost=flagship_cost)
+        )
+    return EstimateResponse(summary=estimate_savings(rows).to_dict(), items=items)
 
 
 class TicketAnswerRequest(BaseModel):
