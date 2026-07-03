@@ -20,3 +20,17 @@ include = ["axiomn*"]
 
 [tool.setuptools.package-data]
 "axiomn.api" = ["static/*"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["axiomn"]
+# Third-party packages without type stubs (langdetect, uvicorn plugins) must not
+# fail the type check for our own code.
+ignore_missing_imports = true
+# Enforce the guarantees that matter for a runtime other software depends on,
+# without demanding a from-scratch annotation of every local. Tightened over
+# time as the codebase converges on full typing.
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true

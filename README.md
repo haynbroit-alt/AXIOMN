@@ -192,7 +192,10 @@ need zero setup. Set these before exposing AXIOMN beyond your machine:
 | `AXIOMN_RATE_LIMIT_PER_MINUTE` | `60` | Max `POST /v1/intent` requests per client (per API key, or per IP without one) per rolling 60s window. In-memory, per-process. |
 | `AXIOMN_ROUTER_STATE_PATH` | unset (no persistence) | JSON file where the Router's trust scores are saved on every `record_outcome()` and reloaded at startup. Unset means every restart forgets what the Router has learned. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | unset (simulated) | Real provider clients for the Gateway. Without them, cloud answers are explicitly labeled `[simulated:...]`. |
+| `AXIOMN_REQUIRE_REAL_PROVIDER` | `0` (off) | Production guardrail. When `1`, the app **refuses to start** unless every provider is a real client — so a deploy that forgot a key fails fast instead of silently serving `[simulated:...]`. `GET /health` always reports the current `provider_mode` (`real`/`simulated`/`mixed`). |
 | `AXIOMN_LLM_CLASSIFIER` | `1` (enabled) | When the keyword heuristic can't read a request (UNKNOWN or near-tie), the Gateway's **cheapest** model classifies it by meaning instead of dead-ending it in the human queue. Fail-open: without provider keys, behavior is identical to the heuristic alone. Set `0` to disable. |
+| `AXIOMN_VERITY_URL` | unset (off) | When set, code-execution (`AUTOMATE`) intents run in VERITY's isolated sandbox and return an Ed25519-signed proof (see `UNIFIED_ARCHITECTURE.md`). Fail-open: an unreachable sandbox degrades the route, never crashes the runtime. |
+| `AXIOMN_LOG_FORMAT`, `AXIOMN_LOG_LEVEL` | `json`, `INFO` | Structured logging. Each line is a JSON object with a request id and, for routing decisions, the route/model/cost/latency — queryable in a log aggregator. Set `AXIOMN_LOG_FORMAT=text` for human-readable local dev. |
 
 The SDK passes the key with `AXIOMNClient(api_key="...")`.
 

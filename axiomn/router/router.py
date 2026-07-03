@@ -110,6 +110,7 @@ class Router:
                 return
 
     def _load_trust_scores(self) -> None:
+        assert self.persistence_path is not None  # only called when configured
         path = Path(self.persistence_path)
         if not path.exists():
             return
@@ -122,5 +123,6 @@ class Router:
                 profile.trust_score = saved[profile.route.value]
 
     def _save_trust_scores(self) -> None:
+        assert self.persistence_path is not None  # only called when configured
         data = {profile.route.value: profile.trust_score for profile in self.profiles}
         Path(self.persistence_path).write_text(json.dumps(data))

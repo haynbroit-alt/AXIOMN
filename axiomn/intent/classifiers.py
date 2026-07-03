@@ -70,7 +70,7 @@ class HeuristicIntentClassifier:
         if best_score == 0:
             return Classification(category=IntentCategory.UNKNOWN, confidence=0.2, ambiguity=1.0)
 
-        best_category = max(scores, key=scores.get)
+        best_category = max(scores, key=lambda c: scores[c])
         confidence = round(min(1.0, 0.4 + 0.2 * best_score), 2)
         ambiguity = round(runner_up_score / best_score, 2)
         return Classification(category=best_category, confidence=confidence, ambiguity=ambiguity)

@@ -25,6 +25,23 @@ class GatewayHandler:
         if missing:
             raise ValueError(f"No client configured for provider(s): {sorted(missing)}")
 
+    def provider_mode(self) -> str:
+        """Whether this Gateway can produce real answers or only simulated ones.
+
+        ``real`` — every configured provider is a live client.
+        ``simulated`` — every provider is the offline `SimulatedClient`.
+        ``mixed`` — some real, some simulated (a request routed to a simulated
+        provider still comes back `[simulated:...]`, so this is *not* a
+        production-safe state; the strict startup check below treats only
+        ``real`` as safe).
+        """
+        simulated = [isinstance(c, SimulatedClient) for c in self.clients.values()]
+        if not any(simulated):
+            return "real"
+        if all(simulated):
+            return "simulated"
+        return "mixed"
+
     def run(self, intent: Intent) -> ToolResult:
         profile, reason = self.catalog.select(intent)
         metadata = {
@@ -58,4 +75,18 @@ def build_default_gateway() -> GatewayHandler:
         "anthropic": AnthropicClient(anthropic_key) if anthropic_key else SimulatedClient(),
         "openai": OpenAIClient(openai_key) if openai_key else SimulatedClient(),
     }
-    return GatewayHandler(catalog=default_catalog(), clients=clients)
+    gateway = GatewayHandler(catalog=default_catalog(), clients=clients)
+    # Production guardrail: with AXIOMN_REQUIRE_REAL_PROVIDER set, refuse to
+    # start unless every provider is a live client. This is the difference
+    # between "the API is up" and "the API is answering for real" — it stops a
+    # deploy from silently serving `[simulated:...]` because a key was forgotten.
+    if os.environ.get("AXIOMN_REQUIRE_REAL_PROVIDER", "0").lower() in ("1", "true"):
+        mode = gateway.provider_mode()
+        if mode != "real":
+            raise RuntimeError(
+                "AXIOMN_REQUIRE_REAL_PROVIDER is set but the Gateway is in "
+                f"'{mode}' mode: no real answers without ANTHROPIC_API_KEY and "
+                "OPENAI_API_KEY configured. Refusing to start in a state that "
+                "would serve simulated answers as if they were real."
+            )
+    return gateway
