@@ -146,6 +146,40 @@ tickets at `GET /queue` and resolves one with
 this automatically: the ⏳ placeholder is replaced by the human's answer
 the moment it arrives, without a reload.
 
+### Estimate your savings on your own traffic
+
+Before integrating — or spending a cent — see what routing would save you.
+`POST /v1/estimate` takes a batch of your representative prompts, classifies
+and routes each one exactly as it would live, and prices the result against the
+no-routing baseline (everything to the flagship model). Nothing is executed and
+no model is called, so **it works with zero API keys configured**:
+
+```bash
+curl -X POST http://127.0.0.1:8000/v1/estimate \
+  -H "Content-Type: application/json" \
+  -d '{"texts": ["Explain how black holes form", "hi", "reset my password"]}'
+```
+
+```json
+{
+  "summary": {
+    "requests": 3,
+    "projected_cost": 0.08,
+    "baseline_cost": 0.45,
+    "saved": 0.37,
+    "savings_rate": 0.8222,
+    "by_route": { "local_ai": 2, "cloud_ai": 1 }
+  },
+  "items": [ { "text": "...", "route": "local_ai", "cost": 0.0, "baseline_cost": 0.15 } ]
+}
+```
+
+The estimate uses the same cost model as live routing: a cloud request is
+priced at the model the Gateway would actually pick, a local request is free,
+and a human escalation makes no savings claim (it isn't a cheaper flagship).
+The savings figure is computed from *your* traffic, not a marketing number —
+the same honesty rule as `GET /v1/metrics`.
+
 ### SDK usage
 
 ```python
@@ -196,6 +230,7 @@ need zero setup. Set these before exposing AXIOMN beyond your machine:
 | `AXIOMN_LLM_CLASSIFIER` | `1` (enabled) | When the keyword heuristic can't read a request (UNKNOWN or near-tie), the Gateway's **cheapest** model classifies it by meaning instead of dead-ending it in the human queue. Fail-open: without provider keys, behavior is identical to the heuristic alone. Set `0` to disable. |
 | `AXIOMN_VERITY_URL` | unset (off) | When set, code-execution (`AUTOMATE`) intents run in VERITY's isolated sandbox and return an Ed25519-signed proof (see `UNIFIED_ARCHITECTURE.md`). Fail-open: an unreachable sandbox degrades the route, never crashes the runtime. |
 | `AXIOMN_LOG_FORMAT`, `AXIOMN_LOG_LEVEL` | `json`, `INFO` | Structured logging. Each line is a JSON object with a request id and, for routing decisions, the route/model/cost/latency — queryable in a log aggregator. Set `AXIOMN_LOG_FORMAT=text` for human-readable local dev. |
+| `AXIOMN_AUDIT_URL` | unset (log-only) | The AXIOMN→SIOS edge: every decision is emitted as a SHA-256-hashed audit event (the user's text is hashed, never stored — RGPD). Always logged; when set, also POSTed to a SIOS ingest endpoint. Fail-open: an unreachable auditor degrades to log-only, never breaks a request. |
 
 The SDK passes the key with `AXIOMNClient(api_key="...")`.
 
@@ -212,6 +247,10 @@ Deploying to Fly.io uses the repository's own `Dockerfile` and
 `fly.toml` (proxy on `internal_port = 8000`, health check on
 `/v1/health`). Set secrets out-of-band, never in the repo:
 `fly secrets set AXIOMN_API_KEYS=... ANTHROPIC_API_KEY=sk-...`.
+Deploy either by hand (`fly deploy`) or automatically: the
+`.github/workflows/deploy.yml` workflow runs `flyctl deploy` on every
+push to `main` (and on manual dispatch) once a `FLY_API_TOKEN` repo
+secret is set (`fly tokens create deploy`).
 
 CI (`.github/workflows/ci.yml`) runs lint, the full test suite with a
 **90% coverage floor** (currently at 99%), and builds + smoke-tests the

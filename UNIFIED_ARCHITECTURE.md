@@ -182,11 +182,19 @@ Ed25519 signatures over an append-only record (`sios/proof_layer/`,
 foundation in the diagram: a proof produced by one system is verifiable by
 anyone holding the public key, no access to the producer required.
 
-### 3. AXIOMN ↔ BIG-BANG and AXIOMN ↔ SIOS — *design intent, not yet wired*
-The diagram's "Sync (app evolution)" and "measure / prove" arrows are
-**aspirational**: AXIOMN deciding an intent needs new infrastructure and asking
-BIG-BANG to compile it, or handing outputs to SIOS for audit. There is no code
-path between these repos today. See the reality check.
+### 3. AXIOMN → SIOS audit edge — ✅ emit side implemented
+Every decision `POST /v1/intent` makes is emitted as a canonical,
+SHA-256-hashed `AuditEvent` (`axiomn/audit.py`) — the decision, its cost
+baseline, and any VERITY proof, with the user's text hashed (`payload_hash`),
+never stored (RGPD). Log-only by default; with `AXIOMN_AUDIT_URL` set it also
+POSTs each event to a SIOS ingest endpoint, fail-open (a SIOS that is down never
+breaks a request). AXIOMN now hands SIOS a tamper-evident record to measure and
+prove; the SIOS-side ingest/ledger is the other half, still to build.
+
+### 4. AXIOMN ↔ BIG-BANG — *design intent, not yet wired*
+The diagram's "Sync (app evolution)" arrow is **aspirational**: AXIOMN deciding
+an intent needs new infrastructure and asking BIG-BANG to compile it. There is
+no code path between these repos today. See the reality check.
 
 ---
 
@@ -205,11 +213,12 @@ The diagram is a **target architecture**. Honest status of each piece:
 | "Context Engine" (episodic/semantic memory, RAG) | ⚠️ Partial — routing/context exists; no unified memory service |
 | "Unified Data & Learning Layer" (data lake, knowledge graph, feedback) | ❌ Conceptual — no shared data/learning service across repos |
 | AXIOMN ↔ BIG-BANG "Sync" | ❌ Not wired — no cross-repo call |
-| AXIOMN ↔ SIOS "measure/prove" | ❌ Not wired — no cross-repo call |
+| AXIOMN → SIOS "measure/prove" | ⚠️ Emit side real (`axiomn/audit.py`, opt-in `AXIOMN_AUDIT_URL`); SIOS ingest/ledger still to build |
 | Observability / Compliance foundation (RGPD, SOC2) | ⚠️ Partial — per-repo logging + audit trails; no unified governance plane |
 
-**Bottom line.** Each of the four systems is real and works on its own. The
-first genuine cross-system seam — AXIOMN's Executor running code in VERITY's
-proof sandbox — is implemented here. The remaining arrows (shared data/learning
-layer, AXIOMN↔BIG-BANG, AXIOMN↔SIOS) are the roadmap, not yet code, and are
+**Bottom line.** Each of the four systems is real and works on its own. Two
+cross-system seams now exist in code: AXIOMN's Executor running code in VERITY's
+proof sandbox, and AXIOMN emitting a hashed audit event per decision toward SIOS
+(emit side). The remaining work (SIOS-side ingest/ledger, a shared
+data/learning layer, AXIOMN↔BIG-BANG) is the roadmap, not yet code, and is
 labeled as such above so no one mistakes the map for the territory.

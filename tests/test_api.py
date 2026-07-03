@@ -25,6 +25,26 @@ def test_request_id_is_echoed_when_supplied():
     assert response.headers["X-Request-ID"] == "trace-42"
 
 
+def test_estimate_projects_savings_on_a_batch_without_executing():
+    # A mix of easy (local) and hard (cloud) prompts should show real savings
+    # vs the all-flagship baseline — with no provider keys configured.
+    resp = client.post(
+        "/v1/estimate",
+        json={"texts": ["Explain how black holes form", "hi", "what is 2+2"]},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["summary"]["requests"] == 3
+    assert len(data["items"]) == 3
+    assert data["summary"]["baseline_cost"] >= data["summary"]["projected_cost"]
+    assert 0.0 <= data["summary"]["savings_rate"] <= 1.0
+    for item in data["items"]:
+        assert item["route"] in {"local_ai", "cloud_ai", "human_queue"}
+        # Invariant: no request is ever projected above its own baseline — a
+        # human escalation makes no savings claim, it never shows as a loss.
+        assert item["cost"] <= item["baseline_cost"]
+
+
 def test_health_includes_image_ref_when_platform_provides_one(monkeypatch):
     monkeypatch.setenv("FLY_IMAGE_REF", "registry.fly.io/axiomn:deployment-123")
     data = client.get("/health").json()
