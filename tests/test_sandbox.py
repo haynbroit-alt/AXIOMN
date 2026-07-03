@@ -7,7 +7,6 @@ behaves exactly as it did before this wiring existed.
 import json
 
 import httpx
-import pytest
 
 from axiomn.intent.schema import Intent, IntentCategory
 from axiomn.models.tools import default_registry
@@ -50,7 +49,7 @@ def test_handler_sends_intent_text_as_sandbox_payload():
     handler = VeritySandboxHandler(
         "https://verity.example", transport=httpx.MockTransport(responder)
     )
-    result = handler.run(_intent("print(2 ** 10)"))
+    handler.run(_intent("print(2 ** 10)"))
     handler.close()
 
     assert seen["url"] == "https://verity.example/v1/verify"
