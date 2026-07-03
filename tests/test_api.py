@@ -40,6 +40,9 @@ def test_estimate_projects_savings_on_a_batch_without_executing():
     assert 0.0 <= data["summary"]["savings_rate"] <= 1.0
     for item in data["items"]:
         assert item["route"] in {"local_ai", "cloud_ai", "human_queue"}
+        # Invariant: no request is ever projected above its own baseline — a
+        # human escalation makes no savings claim, it never shows as a loss.
+        assert item["cost"] <= item["baseline_cost"]
 
 
 def test_health_includes_image_ref_when_platform_provides_one(monkeypatch):

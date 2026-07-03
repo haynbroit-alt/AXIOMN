@@ -164,16 +164,19 @@ curl -X POST http://127.0.0.1:8000/v1/estimate \
 {
   "summary": {
     "requests": 3,
-    "projected_cost": 0.03,
-    "baseline_cost": 0.09,
-    "saved": 0.06,
-    "savings_rate": 0.6667,
+    "projected_cost": 0.08,
+    "baseline_cost": 0.45,
+    "saved": 0.37,
+    "savings_rate": 0.8222,
     "by_route": { "local_ai": 2, "cloud_ai": 1 }
   },
-  "items": [ { "text": "...", "route": "local_ai", "cost": 0.0, "baseline_cost": 0.03 } ]
+  "items": [ { "text": "...", "route": "local_ai", "cost": 0.0, "baseline_cost": 0.15 } ]
 }
 ```
 
+The estimate uses the same cost model as live routing: a cloud request is
+priced at the model the Gateway would actually pick, a local request is free,
+and a human escalation makes no savings claim (it isn't a cheaper flagship).
 The savings figure is computed from *your* traffic, not a marketing number —
 the same honesty rule as `GET /v1/metrics`.
 

@@ -306,10 +306,22 @@ def estimate(payload: EstimateRequest) -> EstimateResponse:
     for text in payload.texts:
         intent = intent_engine.classify(text)
         route = router.route(intent)
-        cost = _cost_of(route)
-        rows.append(EstimateRow(route=route.value, cost=cost, baseline_cost=flagship_cost))
+        # Mirror the live /v1/intent cost model exactly, as a dry run:
+        #  - cloud: the model the Gateway would pick, priced from the catalog;
+        #  - human: no savings claim — a human isn't a cheaper flagship, so its
+        #    baseline is its own cost (contributes 0 to savings), never a
+        #    spurious "negative saving";
+        #  - local: free, still measured against the flagship baseline.
+        if route == Route.CLOUD_AI:
+            profile, _ = gateway.catalog.select(intent)
+            cost, baseline = profile.cost_per_call, flagship_cost
+        elif route == Route.HUMAN_QUEUE:
+            cost = baseline = _cost_of(route)
+        else:
+            cost, baseline = _cost_of(route), flagship_cost
+        rows.append(EstimateRow(route=route.value, cost=cost, baseline_cost=baseline))
         items.append(
-            EstimateItem(text=text, route=route.value, cost=cost, baseline_cost=flagship_cost)
+            EstimateItem(text=text, route=route.value, cost=cost, baseline_cost=baseline)
         )
     return EstimateResponse(summary=estimate_savings(rows).to_dict(), items=items)
 
