@@ -65,6 +65,11 @@ else:
     intent_engine = IntentEngine(
         classifier=build_default_fallback_classifier(gateway.catalog, gateway.clients)
     )
+# The savings estimator uses a keyword-only engine on purpose: /v1/estimate is a
+# dry run that must stay fast, deterministic, and genuinely model-free (no LLM
+# fallback calls, so its "no model calls, zero API keys" promise holds even in
+# real mode). An estimate can be approximate; it must not be slow or billable.
+estimate_intent_engine = IntentEngine()
 # Opt-in: with AXIOMN_VERITY_URL set, code-execution (AUTOMATE) intents run in
 # VERITY's isolated sandbox and come back with an Ed25519 proof instead of a
 # local heuristic answer. Unset -> None -> the sandbox tool is not registered
@@ -317,7 +322,7 @@ def estimate(payload: EstimateRequest) -> EstimateResponse:
     rows: list[EstimateRow] = []
     items: list[EstimateItem] = []
     for text in payload.texts:
-        intent = intent_engine.classify(text)
+        intent = estimate_intent_engine.classify(text)
         route = router.route(intent)
         # Mirror the live /v1/intent cost model exactly, as a dry run:
         #  - cloud: the model the Gateway would pick, priced from the catalog;

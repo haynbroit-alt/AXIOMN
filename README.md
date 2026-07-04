@@ -178,7 +178,13 @@ The endpoint is rate-limited and the batch is bounded (≤100 prompts, ≤4000
 chars each) so it stays safe to expose without an API key. The estimate uses
 the same cost model as live routing: a cloud request is priced at the model the
 Gateway would actually pick, a local request is free, and a human escalation
-makes no savings claim (it isn't a cheaper flagship).
+makes no savings claim (it isn't a cheaper flagship). Classification for the
+estimate is keyword-only — deterministic, fast, and genuinely model-free, so
+the "no API keys" promise holds even on an instance running real providers.
+
+A no-code version of this is served at **`/ui/savings.html`**: paste your
+prompts, see the projected savings and per-route breakdown. On the live
+instance: <https://axiomn.fly.dev/ui/savings.html>.
 The savings figure is computed from *your* traffic, not a marketing number —
 the same honesty rule as `GET /v1/metrics`.
 
@@ -253,6 +259,15 @@ Deploy either by hand (`fly deploy`) or automatically: the
 `.github/workflows/deploy.yml` workflow runs `flyctl deploy` on every
 push to `main` (and on manual dispatch) once a `FLY_API_TOKEN` repo
 secret is set (`fly tokens create deploy`).
+
+Measure a running instance under load with `scripts/loadtest.py` — it
+reports throughput and latency percentiles (p50/p95/p99). The key-free
+`/v1/estimate` endpoint is the safe default target:
+
+```bash
+python scripts/loadtest.py --url https://axiomn.fly.dev \
+  --endpoint estimate --requests 200 --concurrency 20
+```
 
 CI (`.github/workflows/ci.yml`) runs lint, the full test suite with a
 **90% coverage floor** (currently at 99%), and builds + smoke-tests the
