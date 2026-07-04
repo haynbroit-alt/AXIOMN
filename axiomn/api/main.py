@@ -23,7 +23,9 @@ from typing import Annotated
 from pydantic import BaseModel, Field, StringConstraints
 
 from ..audit import build_audit_sink, build_event
+from ..budget import build_budget_guard
 from ..decision import explain_decision
+from ..store import build_store
 from ..gateway.estimate import EstimateRow, estimate_savings
 from ..local import build_local_handler
 from ..observability import configure_logging, logger, request_id_var
@@ -100,7 +102,17 @@ metrics = MetricsCollector()
 # AXIOMN_AUDIT_URL is set (fail-open — the auditor being down never breaks a
 # request). See axiomn/audit.py.
 audit_sink = build_audit_sink()
-rate_limiter = RateLimiter(max_requests=int(os.environ.get("AXIOMN_RATE_LIMIT_PER_MINUTE", "60")))
+# Shared state so limits and budget hold across instances: in-memory by default,
+# Redis when AXIOMN_REDIS_URL is set (see axiomn/store.py). The rate limiter and
+# the intelligence budget both count through it.
+store = build_store()
+rate_limiter = RateLimiter(
+    max_requests=int(os.environ.get("AXIOMN_RATE_LIMIT_PER_MINUTE", "60")), store=store
+)
+# The intelligence budget (the "constitution's" first rule): a per-client spend
+# cap that routes down to the free tier rather than exceed it. Off by default
+# (AXIOMN_BUDGET_PER_MINUTE=0). See axiomn/budget.py.
+budget_guard = build_budget_guard(store)
 
 
 def _client_id(request: Request, x_api_key: str | None = Header(default=None)) -> str:
@@ -204,6 +216,9 @@ class IntentResponse(BaseModel):
     # The negotiator's voice: a client-facing arbitration (headline, why,
     # confidence, doubt, tradeoff) — AXIOMN defending the spend it just made.
     explanation: dict
+    # The intelligence budget: whether a cap is set, how much is spent/remaining,
+    # and whether this request was routed down to stay within it.
+    budget: dict
     result: str
     execution_time_ms: float
     # Measured quality of the answer (0..1) and why — the other half of
@@ -245,9 +260,15 @@ def health() -> dict:
     response_model=IntentResponse,
     dependencies=[Depends(require_api_key), Depends(_enforce_rate_limit)],
 )
-def handle_intent(payload: IntentRequest) -> IntentResponse:
+def handle_intent(
+    payload: IntentRequest, client_id: str = Depends(_client_id)
+) -> IntentResponse:
     intent = intent_engine.classify(payload.text)
     route = router.route(intent)
+    # The intelligence budget: if the chosen route would push this client over
+    # their cap, route down to the free local tier instead (constitution rule).
+    budget = budget_guard.enforce(client_id, route, _cost_of)
+    route = budget.route
     outcome = execution_engine.execute(route, intent)
     action = action_engine.decide(intent, route, outcome.output, metadata=outcome.metadata)
     cost = outcome.metadata.get("cost", _cost_of(route))
@@ -271,6 +292,8 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
         model=outcome.metadata.get("model"),
         quality=outcome.quality,
     )
+    # Charge this request against the client's budget (no-op when disabled/free).
+    budget_guard.record(client_id, cost)
     # The decision as a tamper-evident, auditable record — the AXIOMN -> SIOS
     # edge. The user's text is hashed, never stored (RGPD); the event carries
     # the decision, its cost baseline, and any VERITY proof, plus a SHA-256
@@ -312,6 +335,7 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
             model=outcome.metadata.get("model"),
             model_reason=outcome.metadata.get("selection_reason"),
         ),
+        budget=budget.as_dict(),
         result=outcome.output,
         execution_time_ms=round(outcome.latency_ms, 2),
         quality=outcome.quality,
