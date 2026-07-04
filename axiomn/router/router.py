@@ -112,11 +112,23 @@ class Router:
             - self.latency_weight * latency_norm
         )
 
-    def record_outcome(self, route: Route, success: bool, decay: float = 0.1) -> None:
-        """Update a route's trust score from a real execution outcome (EMA)."""
+    def record_outcome(
+        self,
+        route: Route,
+        success: bool,
+        quality: float | None = None,
+        decay: float = 0.1,
+    ) -> None:
+        """Update a route's trust score from a real execution outcome (EMA).
+
+        The EMA target is the measured `quality` (0..1) when provided — so a
+        route that returns a stub or an empty answer loses trust even though it
+        "succeeded" — falling back to the bare success flag otherwise. This is
+        the closed loop: trust tracks how good the answers actually were.
+        """
+        target = quality if quality is not None else (1.0 if success else 0.0)
         for profile in self.profiles:
             if profile.route == route:
-                target = 1.0 if success else 0.0
                 profile.trust_score = (1 - decay) * profile.trust_score + decay * target
                 if self.persistence_path:
                     self._save_trust_scores()

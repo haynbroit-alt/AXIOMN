@@ -76,11 +76,15 @@ estimate_intent_engine = IntentEngine()
 # local heuristic answer. Unset -> None -> the sandbox tool is not registered
 # and the runtime behaves exactly as before.
 sandbox_handler = build_verity_handler()
+# Quality is always measured; live trust adaptation is opt-in (off by default)
+# so routing stays deterministic — identical requests route identically. Set
+# AXIOMN_ADAPTIVE_ROUTING=1 to close the loop live (see ExecutionEngine).
 execution_engine = ExecutionEngine(
     registry=default_registry(
         human_queue, cloud_handler=gateway, sandbox_handler=sandbox_handler
     ),
     router=router,
+    adapt_routing=os.environ.get("AXIOMN_ADAPTIVE_ROUTING", "0").lower() in ("1", "true"),
 )
 action_engine = ActionEngine()
 metrics = MetricsCollector()
@@ -195,6 +199,10 @@ class IntentResponse(BaseModel):
     explanation: dict
     result: str
     execution_time_ms: float
+    # Measured quality of the answer (0..1) and why — the other half of
+    # "cheaper without visible loss". This is what the Router learns from.
+    quality: float
+    quality_reason: str
     action: ActionResponse
 
 
@@ -254,6 +262,7 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
         cost=cost,
         baseline_cost=baseline_cost,
         model=outcome.metadata.get("model"),
+        quality=outcome.quality,
     )
     # The decision as a tamper-evident, auditable record — the AXIOMN -> SIOS
     # edge. The user's text is hashed, never stored (RGPD); the event carries
@@ -270,6 +279,7 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
             cost=cost,
             baseline_cost=baseline_cost,
             latency_ms=outcome.latency_ms,
+            quality=outcome.quality,
             model=outcome.metadata.get("model"),
             model_reason=outcome.metadata.get("selection_reason"),
             proof=outcome.metadata.get("verity"),
@@ -297,6 +307,8 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
         ),
         result=outcome.output,
         execution_time_ms=round(outcome.latency_ms, 2),
+        quality=outcome.quality,
+        quality_reason=outcome.quality_reason,
         action=ActionResponse(type=action.type.value, payload=action.payload),
     )
 

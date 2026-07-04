@@ -55,6 +55,7 @@ class AuditEvent:
     cost: float
     baseline_cost: float
     latency_ms: float
+    quality: float = 1.0  # measured answer quality (0..1) — auditable, not asserted
     model: Optional[str] = None
     model_reason: Optional[str] = None
     proof: Optional[dict] = None  # VERITY signature/action_id when code was run
@@ -145,6 +146,7 @@ def build_event(
     cost: float,
     baseline_cost: float,
     latency_ms: float,
+    quality: float = 1.0,
     model: Optional[str] = None,
     model_reason: Optional[str] = None,
     proof: Optional[dict] = None,
@@ -161,6 +163,7 @@ def build_event(
         cost=cost,
         baseline_cost=baseline_cost,
         latency_ms=round(latency_ms, 2),
+        quality=quality,
         model=model,
         model_reason=model_reason,
         proof=proof,
