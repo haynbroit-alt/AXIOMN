@@ -187,20 +187,25 @@ answering worse for less. So every answer is scored by a cheap, deterministic
 answers, placeholder/stub output that isn't a real answer, provider failures,
 and unverified sandbox runs — no extra model call, no latency.
 
-That quality feeds two places, closing the loop *decision → result → measure →
-correction*:
+Quality is **always measured** and surfaced:
 
-- **The Router's trust score** learns from quality, not a bare success flag. A
-  route that "succeeds" by returning a stub **loses trust** and gets chosen less
-  over time — the system self-corrects away from bad answers.
 - **`GET /v1/metrics`** reports `avg_quality` right next to `success_rate` and
   `savings`, so cost and quality are always read together. Each `/v1/intent`
-  response also carries its own `quality` + `quality_reason`.
+  response also carries its own `quality` + `quality_reason`, and every SIOS
+  audit event records it.
 
-This is deliberately a proxy, not a judge model — the transparent shape a
-learned evaluator would later slot into behind the same `assess_quality`
-contract. It's what turns *"X% cheaper"* into *"X% cheaper **and** quality held
-at Y"* — measured, on your own traffic.
+Whether that quality also **adapts routing live** is opt-in
+(`AXIOMN_ADAPTIVE_ROUTING`, off by default). The default is deliberate: online
+self-modification makes routing non-deterministic — two identical requests can
+route differently as trust drifts mid-stream — and unstable decisions are what
+kill trust in a router. So by default AXIOMN keeps decisions **stable** and
+records quality for offline/batch tuning. Turn it on and the loop closes live:
+a route that returns stubs **loses trust** and is chosen less over time.
+
+The proxy is deliberately not a judge model — the transparent shape a learned
+evaluator would later slot into behind the same `assess_quality` contract. It's
+what turns *"X% cheaper"* into *"X% cheaper **and** quality held at Y"* —
+measured, on your own traffic.
 
 A request that escalates to a human (e.g. `route == "human_queue"`) gets
 `"action": {"type": "await_human", ...}` instead — with a real `ticket_id`
@@ -304,6 +309,7 @@ need zero setup. Set these before exposing AXIOMN beyond your machine:
 | `AXIOMN_VERITY_URL` | unset (off) | When set, code-execution (`AUTOMATE`) intents run in VERITY's isolated sandbox and return an Ed25519-signed proof (see `UNIFIED_ARCHITECTURE.md`). Fail-open: an unreachable sandbox degrades the route, never crashes the runtime. |
 | `AXIOMN_LOG_FORMAT`, `AXIOMN_LOG_LEVEL` | `json`, `INFO` | Structured logging. Each line is a JSON object with a request id and, for routing decisions, the route/model/cost/latency — queryable in a log aggregator. Set `AXIOMN_LOG_FORMAT=text` for human-readable local dev. |
 | `AXIOMN_AUDIT_URL` | unset (log-only) | The AXIOMN→SIOS edge: every decision is emitted as a SHA-256-hashed audit event (the user's text is hashed, never stored — RGPD). Always logged; when set, also POSTed to a SIOS ingest endpoint. Fail-open: an unreachable auditor degrades to log-only, never breaks a request. |
+| `AXIOMN_ADAPTIVE_ROUTING` | `0` (off) | Close the feedback loop **live**: measured answer quality updates the Router's trust scores as requests flow, so routes that answer badly get chosen less. Off by default to keep routing deterministic (identical requests route identically); quality is measured and reported regardless. |
 
 The SDK passes the key with `AXIOMNClient(api_key="...")`.
 

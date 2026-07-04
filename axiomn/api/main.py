@@ -76,11 +76,15 @@ estimate_intent_engine = IntentEngine()
 # local heuristic answer. Unset -> None -> the sandbox tool is not registered
 # and the runtime behaves exactly as before.
 sandbox_handler = build_verity_handler()
+# Quality is always measured; live trust adaptation is opt-in (off by default)
+# so routing stays deterministic — identical requests route identically. Set
+# AXIOMN_ADAPTIVE_ROUTING=1 to close the loop live (see ExecutionEngine).
 execution_engine = ExecutionEngine(
     registry=default_registry(
         human_queue, cloud_handler=gateway, sandbox_handler=sandbox_handler
     ),
     router=router,
+    adapt_routing=os.environ.get("AXIOMN_ADAPTIVE_ROUTING", "0").lower() in ("1", "true"),
 )
 action_engine = ActionEngine()
 metrics = MetricsCollector()

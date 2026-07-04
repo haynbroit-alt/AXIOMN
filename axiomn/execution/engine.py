@@ -1,9 +1,14 @@
 """The Execution Layer: picks a tool for the Router's chosen Route, runs it,
-times it, measures the quality of what came back, and — if wired to a `Router` —
-reports that quality back so future routing decisions are grounded in what
-actually happened, closing the loop between execution and the Router's trust
-scores. The loop learns from *quality*, not just a success flag: a route that
-returns a stub or an empty answer loses trust and gets chosen less.
+times it, and measures the quality of what came back.
+
+Quality is *always* measured (it flows to metrics, the response, and the audit
+trail). Whether that quality also mutates the Router's trust scores *live* is
+opt-in (`adapt_routing`), off by default. That default is deliberate: online
+self-modification makes routing non-deterministic — two identical requests can
+route differently as trust drifts mid-stream — which is exactly the instability
+that kills trust in a router. So by default AXIOMN records quality for
+offline/batch tuning and keeps decisions stable; turning `adapt_routing` on
+closes the loop live, letting a route that returns stubs lose trust over time.
 """
 import time
 from dataclasses import dataclass, field
@@ -28,9 +33,15 @@ class ExecutionOutcome:
 
 
 class ExecutionEngine:
-    def __init__(self, registry: ToolRegistry | None = None, router: Router | None = None):
+    def __init__(
+        self,
+        registry: ToolRegistry | None = None,
+        router: Router | None = None,
+        adapt_routing: bool = False,
+    ):
         self.registry = registry or default_registry()
         self.router = router
+        self.adapt_routing = adapt_routing
 
     def execute(self, route: Route, intent: Intent) -> ExecutionOutcome:
         tool = self.registry.best_for(route, intent)
@@ -38,10 +49,10 @@ class ExecutionEngine:
         result = tool.handler.run(intent)
         latency_ms = (time.perf_counter() - start) * 1000
         quality = assess_quality(result.output, result.success, result.metadata)
-        if self.router is not None:
-            # Feed the measured quality into the trust loop, not a bare bool:
-            # a route that "succeeds" with a placeholder answer should still
-            # lose trust over time.
+        if self.router is not None and self.adapt_routing:
+            # Live loop (opt-in): feed measured quality into trust, not a bare
+            # bool — a route that "succeeds" with a placeholder answer still
+            # loses trust. Off by default so routing stays deterministic.
             self.router.record_outcome(route, success=result.success, quality=quality.score)
         return ExecutionOutcome(
             output=result.output,
