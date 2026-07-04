@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>AXIOMN — Voyez votre économie</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0b0d12;
+    color: #e6e9ef;
+    display: flex;
+    justify-content: center;
+    padding: 48px 16px;
+  }
+  main { width: 100%; max-width: 720px; }
+  h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 0.02em; margin: 0 0 4px; }
+  p.tagline { color: #8b92a5; margin: 0 0 28px; line-height: 1.5; }
+  label { display: block; font-size: 0.85rem; color: #8b92a5; margin-bottom: 6px; }
+  textarea {
+    width: 100%;
+    min-height: 140px;
+    background: #151823;
+    border: 1px solid #2a2f3d;
+    color: #e6e9ef;
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    resize: vertical;
+  }
+  textarea:focus { outline: 2px solid #5b8cff; }
+  .row { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+  input[type="text"] {
+    flex: 1; min-width: 200px;
+    background: #151823; border: 1px solid #2a2f3d; color: #e6e9ef;
+    border-radius: 8px; padding: 10px 12px; font-size: 0.9rem;
+  }
+  button {
+    background: #5b8cff; color: #fff; border: none; border-radius: 8px;
+    padding: 11px 22px; font-size: 1rem; cursor: pointer; font-weight: 600;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  #out { margin-top: 28px; display: none; }
+  .hero {
+    background: linear-gradient(135deg, #14301f, #0f2a3a);
+    border: 1px solid #2a4a3d; border-radius: 12px; padding: 22px; text-align: center;
+  }
+  .hero .rate { font-size: 2.6rem; font-weight: 700; color: #46d19e; line-height: 1; }
+  .hero .sub { color: #9fb3ac; margin-top: 6px; font-size: 0.9rem; }
+  .bars { margin-top: 20px; }
+  .bar-label { font-size: 0.8rem; color: #8b92a5; margin: 10px 0 4px; }
+  .bar { height: 26px; border-radius: 6px; display: flex; align-items: center; padding-left: 10px;
+         font-size: 0.85rem; color: #fff; white-space: nowrap; }
+  .bar.baseline { background: #3a4152; }
+  .bar.projected { background: #5b8cff; }
+  table { width: 100%; border-collapse: collapse; margin-top: 22px; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #20242f; }
+  th { color: #8b92a5; font-weight: 500; }
+  td.route { font-family: ui-monospace, monospace; }
+  .pill { font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; background: #20242f; color: #b9c0d0; }
+  .err { color: #ff8b8b; margin-top: 16px; display: none; }
+  footer { margin-top: 34px; color: #6b7280; font-size: 0.8rem; line-height: 1.5; }
+  a { color: #5b8cff; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Voyez votre économie</h1>
+  <p class="tagline">
+    Collez un échantillon de vos requêtes (une par ligne). AXIOMN les classe et
+    les route exactement comme en production, puis chiffre le coût projeté face
+    au coût « tout au modèle premium ». Aucune exécution, aucune clé API — le
+    chiffre est calculé sur <em>votre</em> trafic.
+  </p>
+
+  <label for="prompts">Vos requêtes (une par ligne, max 100)</label>
+  <textarea id="prompts" spellcheck="false"></textarea>
+
+  <div class="row">
+    <input id="api" type="text" value="" placeholder="URL de l'API (défaut : cette instance)" />
+    <button id="go">Estimer l'économie</button>
+  </div>
+
+  <p class="err" id="err"></p>
+
+  <div id="out">
+    <div class="hero">
+      <div class="rate" id="rate">—</div>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="bars">
+      <div class="bar-label">Sans routage (tout au modèle premium)</div>
+      <div class="bar baseline" id="barBase"></div>
+      <div class="bar-label">Avec AXIOMN</div>
+      <div class="bar projected" id="barProj"></div>
+    </div>
+    <table>
+      <thead><tr><th>Route</th><th>Requêtes</th></tr></thead>
+      <tbody id="routes"></tbody>
+    </table>
+  </div>
+
+  <footer>
+    Le coût suit le modèle réel du routage : une requête cloud est chiffrée au
+    modèle que la Gateway choisirait, une requête locale est gratuite, et une
+    escalade humaine ne revendique aucune économie. Endpoint :
+    <code>POST /v1/estimate</code> (rate-limité, lot borné). Même règle
+    d'honnêteté que <code>GET /v1/metrics</code>.
+  </footer>
+</main>
+
+<script>
+  const SEED = [
+    "Explique-moi comment fonctionnent les trous noirs",
+    "bonjour",
+    "Combien font 2 + 2 ?",
+    "Rédige une stratégie go-to-market complète pour un SaaS B2B",
+    "Trouve-moi un expert en droit fiscal",
+    "Résume ce texte en une phrase",
+    "Traduis 'good morning' en français",
+    "Conçois l'architecture d'un système distribué tolérant aux pannes",
+  ];
+  const $ = (id) => document.getElementById(id);
+  $("prompts").value = SEED.join("\n");
+
+  const fmt = (n) => n.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+
+  async function run() {
+    const texts = $("prompts").value.split("\n").map((s) => s.trim()).filter(Boolean);
+    const base = $("api").value.trim().replace(/\/$/, "");
+    $("err").style.display = "none";
+    $("go").disabled = true;
+    try {
+      const resp = await fetch(base + "/v1/estimate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ texts }),
+      });
+      if (!resp.ok) throw new Error("HTTP " + resp.status + " — " + (await resp.text()).slice(0, 200));
+      const data = await resp.json();
+      render(data.summary);
+    } catch (e) {
+      $("err").textContent = "Erreur : " + e.message;
+      $("err").style.display = "block";
+    } finally {
+      $("go").disabled = false;
+    }
+  }
+
+  function render(s) {
+    $("out").style.display = "block";
+    $("rate").textContent = Math.round(s.savings_rate * 100) + "% économisé";
+    $("sub").textContent =
+      s.requests + " requêtes · " + fmt(s.saved) + " économisé (" +
+      fmt(s.projected_cost) + " au lieu de " + fmt(s.baseline_cost) + " unités de coût)";
+    const maxc = Math.max(s.baseline_cost, 0.0000001);
+    $("barBase").style.width = "100%";
+    $("barBase").textContent = fmt(s.baseline_cost);
+    $("barProj").style.width = Math.max(4, (s.projected_cost / maxc) * 100) + "%";
+    $("barProj").textContent = fmt(s.projected_cost);
+    const tb = $("routes");
+    tb.innerHTML = "";
+    for (const [route, n] of Object.entries(s.by_route)) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = '<td class="route">' + route + '</td><td><span class="pill">' + n + "</span></td>";
+      tb.appendChild(tr);
+    }
+  }
+
+  $("go").addEventListener("click", run);
+  run();
+</script>
+</body>
+</html>

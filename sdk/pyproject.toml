@@ -8,12 +8,9 @@ dependencies = ["httpx>=0.27"]
 authors = [{ name = "AXIOMN" }]
 keywords = ["axiomn", "llm", "routing", "intent", "gateway", "api-client"]
 
-# NOTE: no `license` field yet — AXIOMN has not declared a license. This MUST be
-# set (and a LICENSE file added) before the first PyPI publish; otherwise the
-# package ships as "UNKNOWN"-licensed. Left deliberately blank rather than
-# guessed. Add e.g.  license = "MIT"  and a matching classifier once chosen.
 classifiers = [
     "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",

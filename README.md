@@ -129,11 +129,53 @@ vs. cloud vs. human), success rate, and estimated cost per request.
   "difficulty": 1,
   "confidence": 0.8,
   "ambiguity": 0.0,
+  "value": 0.165,
+  "demand": 1,
+  "signals": { "reasoning": 0.0, "creativity": 0.0, "knowledge": 0.3, "stakes": 0.0, "value": 0.165 },
   "route": "local_ai",
   "tool": "local_heuristic",
   "result": "[local] learn answer for: Explique-moi comment fonctionnent trous noirs",
   "execution_time_ms": 0.01,
   "action": { "type": "voice_reply", "payload": { "text": "[local] learn answer for: ..." } }
+}
+```
+
+### Routing on value, not just difficulty
+
+AXIOMN doesn't only ask *"is this hard?"* — it asks *"how much does getting
+this right matter?"* Each request is scored on independent **signals**
+(`reasoning`, `creativity`, `knowledge`, `stakes`) that combine into an expected
+`value` (0–1). The router routes on **`demand = max(difficulty, value·10)`**, so
+a short but high-stakes request earns a strong model even when its word count
+looks trivial:
+
+| Request | difficulty | value | demand → route |
+|---|---|---|---|
+| "Quelle est la capitale de l'Espagne ?" | 1 | 0.17 | 1 → `local_ai` |
+| "Construis-moi un business rentable basé sur l'IA" | 1 | 0.82 | 8 → `cloud_ai` |
+
+Both are one line; only the second is worth spending real intelligence on. The
+`signals`/`value`/`demand` fields ship in every response, so the decision is
+inspectable — *"this question merits a lot of intelligence"* is a number, not a
+slogan. The scoring is a transparent, tunable heuristic (the same shape a
+learned policy would later fit into), not a black box.
+
+### The negotiator's voice
+
+Every response also carries an `explanation` object — AXIOMN defending, in plain
+language, the spend it just made on your behalf: a `headline`, the `why`, its
+`confidence`, an honest `doubt` (null when the reading is crisp), and the
+cost `tradeoff` against the flagship baseline. It reframes the product from
+"model router" to *an agent arguing your side of the trade*:
+
+```json
+"explanation": {
+  "headline": "Spent up — this one is worth it",
+  "why": "High expected value (0.82) because it calls for real creative work; demand 8/10 earns a stronger model. The Gateway picked gpt-4o — best quality/cost fit.",
+  "confidence": 0.8,
+  "confidence_note": "Confident (0.8) this is a create request.",
+  "doubt": null,
+  "tradeoff": "0.03 vs 0.15 at the flagship — about 80% cheaper than always going premium."
 }
 ```
 
@@ -178,7 +220,13 @@ The endpoint is rate-limited and the batch is bounded (≤100 prompts, ≤4000
 chars each) so it stays safe to expose without an API key. The estimate uses
 the same cost model as live routing: a cloud request is priced at the model the
 Gateway would actually pick, a local request is free, and a human escalation
-makes no savings claim (it isn't a cheaper flagship).
+makes no savings claim (it isn't a cheaper flagship). Classification for the
+estimate is keyword-only — deterministic, fast, and genuinely model-free, so
+the "no API keys" promise holds even on an instance running real providers.
+
+A no-code version of this is served at **`/ui/savings.html`**: paste your
+prompts, see the projected savings and per-route breakdown. On the live
+instance: <https://axiomn.fly.dev/ui/savings.html>.
 The savings figure is computed from *your* traffic, not a marketing number —
 the same honesty rule as `GET /v1/metrics`.
 
@@ -253,6 +301,15 @@ Deploy either by hand (`fly deploy`) or automatically: the
 `.github/workflows/deploy.yml` workflow runs `flyctl deploy` on every
 push to `main` (and on manual dispatch) once a `FLY_API_TOKEN` repo
 secret is set (`fly tokens create deploy`).
+
+Measure a running instance under load with `scripts/loadtest.py` — it
+reports throughput and latency percentiles (p50/p95/p99). The key-free
+`/v1/estimate` endpoint is the safe default target:
+
+```bash
+python scripts/loadtest.py --url https://axiomn.fly.dev \
+  --endpoint estimate --requests 200 --concurrency 20
+```
 
 CI (`.github/workflows/ci.yml`) runs lint, the full test suite with a
 **90% coverage floor** (currently at 99%), and builds + smoke-tests the

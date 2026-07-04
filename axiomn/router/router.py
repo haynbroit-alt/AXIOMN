@@ -78,8 +78,21 @@ class Router:
         if self.persistence_path:
             self._load_trust_scores()
 
+    def demand(self, intent: Intent) -> int:
+        """How much capability this request *deserves*, 1..10.
+
+        The larger of its textual difficulty and its expected value (how much a
+        strong answer is worth, from `intent.signals`). This is the routing
+        thesis in one line: a short, low-difficulty request with high stakes —
+        "construis-moi un business rentable" — still demands a strong model,
+        because getting it wrong is expensive. A request built without signals
+        has value 0, so demand == difficulty and routing is unchanged.
+        """
+        return max(intent.difficulty, round(intent.value * 10))
+
     def route(self, intent: Intent) -> Route:
-        feasible = [p for p in self.profiles if p.capability >= intent.difficulty]
+        demand = self.demand(intent)
+        feasible = [p for p in self.profiles if p.capability >= demand]
         candidates = feasible or self.profiles  # best effort if nothing fully qualifies
         max_cost = max((p.cost_per_call for p in candidates), default=0.0) or 1.0
         max_latency = max((p.latency_ms for p in candidates), default=0.0) or 1.0
