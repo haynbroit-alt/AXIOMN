@@ -23,6 +23,7 @@ from typing import Annotated
 from pydantic import BaseModel, Field, StringConstraints
 
 from ..audit import build_audit_sink, build_event
+from ..decision import explain_decision
 from ..gateway.estimate import EstimateRow, estimate_savings
 from ..observability import configure_logging, logger, request_id_var
 
@@ -189,6 +190,9 @@ class IntentResponse(BaseModel):
     tool: str
     model: str | None = None  # which model the Gateway chose, when cloud-routed
     model_reason: str | None = None  # and why — the choice is always explainable
+    # The negotiator's voice: a client-facing arbitration (headline, why,
+    # confidence, doubt, tradeoff) — AXIOMN defending the spend it just made.
+    explanation: dict
     result: str
     execution_time_ms: float
     action: ActionResponse
@@ -285,6 +289,12 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
         tool=outcome.tool_name,
         model=outcome.metadata.get("model"),
         model_reason=outcome.metadata.get("selection_reason"),
+        explanation=explain_decision(
+            intent, route, router.demand(intent),
+            cost=cost, baseline_cost=baseline_cost,
+            model=outcome.metadata.get("model"),
+            model_reason=outcome.metadata.get("selection_reason"),
+        ),
         result=outcome.output,
         execution_time_ms=round(outcome.latency_ms, 2),
         action=ActionResponse(type=action.type.value, payload=action.payload),

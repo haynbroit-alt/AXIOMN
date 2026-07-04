@@ -160,6 +160,25 @@ inspectable — *"this question merits a lot of intelligence"* is a number, not 
 slogan. The scoring is a transparent, tunable heuristic (the same shape a
 learned policy would later fit into), not a black box.
 
+### The negotiator's voice
+
+Every response also carries an `explanation` object — AXIOMN defending, in plain
+language, the spend it just made on your behalf: a `headline`, the `why`, its
+`confidence`, an honest `doubt` (null when the reading is crisp), and the
+cost `tradeoff` against the flagship baseline. It reframes the product from
+"model router" to *an agent arguing your side of the trade*:
+
+```json
+"explanation": {
+  "headline": "Spent up — this one is worth it",
+  "why": "High expected value (0.82) because it calls for real creative work; demand 8/10 earns a stronger model. The Gateway picked gpt-4o — best quality/cost fit.",
+  "confidence": 0.8,
+  "confidence_note": "Confident (0.8) this is a create request.",
+  "doubt": null,
+  "tradeoff": "0.03 vs 0.15 at the flagship — about 80% cheaper than always going premium."
+}
+```
+
 A request that escalates to a human (e.g. `route == "human_queue"`) gets
 `"action": {"type": "await_human", ...}` instead — with a real `ticket_id`
 and `status_url` in the payload. The client polls `GET /queue/{ticket_id}`
