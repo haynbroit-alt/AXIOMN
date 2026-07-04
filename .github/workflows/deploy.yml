@@ -21,12 +21,28 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # No-op instead of a hard failure on forks/clones without the secret set.
-    if: ${{ github.repository == 'haynbroit-alt/AXIOMN' }}
     steps:
+      # Skip cleanly (green, not red) until FLY_API_TOKEN is configured, so an
+      # unconfigured repo doesn't show a permanent failing check on main. The
+      # token is read into an env var and only tested for emptiness — never
+      # echoed — so it can't leak into logs.
+      - name: Check for deploy token
+        id: check
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          if [ -z "$FLY_API_TOKEN" ]; then
+            echo "::notice::FLY_API_TOKEN not set — skipping deploy. Add it with 'fly tokens create deploy' to enable auto-deploy."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.check.outputs.deploy == 'true'
       - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: steps.check.outputs.deploy == 'true'
       - name: Deploy
+        if: steps.check.outputs.deploy == 'true'
         run: flyctl deploy --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

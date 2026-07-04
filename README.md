@@ -174,9 +174,11 @@ curl -X POST http://127.0.0.1:8000/v1/estimate \
 }
 ```
 
-The estimate uses the same cost model as live routing: a cloud request is
-priced at the model the Gateway would actually pick, a local request is free,
-and a human escalation makes no savings claim (it isn't a cheaper flagship).
+The endpoint is rate-limited and the batch is bounded (≤100 prompts, ≤4000
+chars each) so it stays safe to expose without an API key. The estimate uses
+the same cost model as live routing: a cloud request is priced at the model the
+Gateway would actually pick, a local request is free, and a human escalation
+makes no savings claim (it isn't a cheaper flagship).
 The savings figure is computed from *your* traffic, not a marketing number —
 the same honesty rule as `GET /v1/metrics`.
 
