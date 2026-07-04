@@ -10,9 +10,10 @@ Adapted from PR #5, rebased onto the v1 API.
 """
 import os
 import time
-from collections import defaultdict, deque
 
 from fastapi import Header, HTTPException, status
+
+from ..store import Store, InMemoryStore
 
 
 def _configured_api_keys() -> set[str]:
@@ -29,18 +30,23 @@ def require_api_key(x_api_key: str | None = Header(default=None)) -> None:
 
 
 class RateLimiter:
-    """A simple in-memory sliding-window limiter, keyed per client."""
+    """A fixed-window limiter, keyed per client, backed by a `Store`.
 
-    def __init__(self, max_requests: int = 60, window_seconds: float = 60.0):
+    With the default `InMemoryStore` it counts within one process (unchanged for
+    single-instance deploys); pass a `RedisStore` and the limit is enforced
+    across every instance. Fixed-window (one counter per client per time bucket,
+    expiring after the window) rather than sliding — the correct, atomic shape
+    for a shared counter.
+    """
+
+    def __init__(self, max_requests: int = 60, window_seconds: float = 60.0, store: Store | None = None):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        self._hits: dict[str, deque] = defaultdict(deque)
+        self._store = store or InMemoryStore()
 
     def check(self, client_id: str) -> None:
-        now = time.monotonic()
-        hits = self._hits[client_id]
-        while hits and now - hits[0] > self.window_seconds:
-            hits.popleft()
-        if len(hits) >= self.max_requests:
+        bucket = int(time.time() // self.window_seconds)
+        key = f"ratelimit:{client_id}:{bucket}"
+        count = self._store.incr(key, 1.0, ttl_seconds=self.window_seconds)
+        if count > self.max_requests:
             raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
-        hits.append(now)

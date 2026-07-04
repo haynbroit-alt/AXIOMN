@@ -49,9 +49,22 @@ def test_rate_limiter_tracks_clients_independently():
     limiter.check("client-b")  # separate budget, should not raise
 
 
-def test_rate_limiter_window_slides(monkeypatch):
+def test_rate_limiter_window_resets_after_the_window(monkeypatch):
     limiter = RateLimiter(max_requests=1, window_seconds=60.0)
-    clock = iter([0.0, 61.0, 61.0])
-    monkeypatch.setattr("axiomn.api.security.time.monotonic", lambda: next(clock))
+    clock = iter([0.0, 61.0])
+    monkeypatch.setattr("axiomn.api.security.time.time", lambda: next(clock))
     limiter.check("client-a")
-    limiter.check("client-a")  # 61s later: the old hit expired, no raise
+    limiter.check("client-a")  # next window bucket: the counter reset, no raise
+
+
+def test_rate_limiter_shares_state_through_the_store():
+    # Two limiters on the same store enforce one shared limit — the property
+    # that lets the limit hold across processes when the store is Redis.
+    from axiomn.store import InMemoryStore
+
+    store = InMemoryStore()
+    a = RateLimiter(max_requests=1, window_seconds=60.0, store=store)
+    b = RateLimiter(max_requests=1, window_seconds=60.0, store=store)
+    a.check("client-a")
+    with pytest.raises(HTTPException):
+        b.check("client-a")  # b sees a's count via the shared store
