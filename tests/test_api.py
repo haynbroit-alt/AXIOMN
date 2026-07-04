@@ -45,6 +45,14 @@ def test_estimate_projects_savings_on_a_batch_without_executing():
         assert item["cost"] <= item["baseline_cost"]
 
 
+def test_estimate_rejects_oversized_or_empty_batches():
+    # Unauthenticated endpoint: the batch is bounded so it can't be used to
+    # force unbounded classification work.
+    assert client.post("/v1/estimate", json={"texts": []}).status_code == 422
+    assert client.post("/v1/estimate", json={"texts": ["x"] * 101}).status_code == 422
+    assert client.post("/v1/estimate", json={"texts": ["x" * 4001]}).status_code == 422
+
+
 def test_health_includes_image_ref_when_platform_provides_one(monkeypatch):
     monkeypatch.setenv("FLY_IMAGE_REF", "registry.fly.io/axiomn:deployment-123")
     data = client.get("/health").json()

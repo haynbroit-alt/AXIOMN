@@ -18,7 +18,9 @@ from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from typing import Annotated
+
+from pydantic import BaseModel, Field, StringConstraints
 
 from ..audit import build_audit_sink, build_event
 from ..gateway.estimate import EstimateRow, estimate_savings
@@ -274,7 +276,14 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
 
 
 class EstimateRequest(BaseModel):
-    texts: list[str]
+    # Bounded so an unauthenticated caller can't force unbounded classification
+    # work in one request: at most 100 prompts, each at most 4000 chars. Larger
+    # corpora are estimated by paging through several calls (which the rate
+    # limiter then throttles).
+    texts: Annotated[
+        list[Annotated[str, StringConstraints(max_length=4000)]],
+        Field(min_length=1, max_length=100),
+    ]
 
 
 class EstimateItem(BaseModel):
@@ -289,7 +298,11 @@ class EstimateResponse(BaseModel):
     items: list[EstimateItem]
 
 
-@api.post("/estimate", response_model=EstimateResponse)
+@api.post(
+    "/estimate",
+    response_model=EstimateResponse,
+    dependencies=[Depends(_enforce_rate_limit)],
+)
 def estimate(payload: EstimateRequest) -> EstimateResponse:
     """Dry-run savings on your own traffic — no execution, no provider keys.
 
