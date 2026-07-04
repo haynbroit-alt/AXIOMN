@@ -85,9 +85,17 @@ def default_registry(
     human_queue: HumanQueue | None = None,
     cloud_handler: ToolHandler | None = None,
     sandbox_handler: ToolHandler | None = None,
+    local_handler: ToolHandler | None = None,
 ) -> ToolRegistry:
     registry = ToolRegistry()
-    registry.register(Tool(name="local_heuristic", route=Route.LOCAL_AI, handler=LocalHeuristicHandler()))
+    # The local tier: a real local model (axiomn/local) when configured, else
+    # the labeled heuristic stub. Registered first so it's the default LOCAL_AI
+    # resolution; the sandbox specialist below still wins for AUTOMATE. Absent a
+    # local_handler, this is exactly the previous behavior.
+    if local_handler is not None:
+        registry.register(Tool(name="local_model", route=Route.LOCAL_AI, handler=local_handler))
+    else:
+        registry.register(Tool(name="local_heuristic", route=Route.LOCAL_AI, handler=LocalHeuristicHandler()))
     if sandbox_handler is not None:
         # VERITY's isolated "Sandbox sécurisé" (see axiomn/sandbox): when the
         # runtime opts in, AUTOMATE intents routed locally run as sandboxed,

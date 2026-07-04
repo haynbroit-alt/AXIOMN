@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field, StringConstraints
 from ..audit import build_audit_sink, build_event
 from ..decision import explain_decision
 from ..gateway.estimate import EstimateRow, estimate_savings
+from ..local import build_local_handler
 from ..observability import configure_logging, logger, request_id_var
 
 from ..action.engine import ActionEngine
@@ -76,12 +77,18 @@ estimate_intent_engine = IntentEngine()
 # local heuristic answer. Unset -> None -> the sandbox tool is not registered
 # and the runtime behaves exactly as before.
 sandbox_handler = build_verity_handler()
+# The cheap tier answers for real when AXIOMN_LOCAL_URL points at a local,
+# OpenAI-compatible model (Ollama, llama.cpp, vLLM, ...). Unset -> the labeled
+# heuristic stub, which the quality proxy scores low so it's never counted as a
+# real answer. This is what makes "cheaper without loss" provable, not asserted.
+local_handler = build_local_handler()
 # Quality is always measured; live trust adaptation is opt-in (off by default)
 # so routing stays deterministic — identical requests route identically. Set
 # AXIOMN_ADAPTIVE_ROUTING=1 to close the loop live (see ExecutionEngine).
 execution_engine = ExecutionEngine(
     registry=default_registry(
-        human_queue, cloud_handler=gateway, sandbox_handler=sandbox_handler
+        human_queue, cloud_handler=gateway,
+        sandbox_handler=sandbox_handler, local_handler=local_handler,
     ),
     router=router,
     adapt_routing=os.environ.get("AXIOMN_ADAPTIVE_ROUTING", "0").lower() in ("1", "true"),
