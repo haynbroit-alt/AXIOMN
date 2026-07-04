@@ -1,13 +1,16 @@
 """The Execution Layer: picks a tool for the Router's chosen Route, runs it,
-times it, and — if wired to a `Router` — reports success/failure back so
-future routing decisions are grounded in what actually happened, closing
-the loop between execution and the Router's trust scores.
+times it, measures the quality of what came back, and — if wired to a `Router` —
+reports that quality back so future routing decisions are grounded in what
+actually happened, closing the loop between execution and the Router's trust
+scores. The loop learns from *quality*, not just a success flag: a route that
+returns a stub or an empty answer loses trust and gets chosen less.
 """
 import time
 from dataclasses import dataclass, field
 
 from ..intent.schema import Intent
 from ..models.tools import ToolRegistry, default_registry
+from ..quality import assess_quality
 from ..router.router import Route, Router
 
 
@@ -18,6 +21,10 @@ class ExecutionOutcome:
     success: bool
     latency_ms: float
     metadata: dict = field(default_factory=dict)
+    # 0..1 proxy for how good the answer actually was, and why (see quality.py).
+    # This — not the bare success flag — is what the Router learns from.
+    quality: float = 1.0
+    quality_reason: str = ""
 
 
 class ExecutionEngine:
@@ -30,12 +37,18 @@ class ExecutionEngine:
         start = time.perf_counter()
         result = tool.handler.run(intent)
         latency_ms = (time.perf_counter() - start) * 1000
+        quality = assess_quality(result.output, result.success, result.metadata)
         if self.router is not None:
-            self.router.record_outcome(route, success=result.success)
+            # Feed the measured quality into the trust loop, not a bare bool:
+            # a route that "succeeds" with a placeholder answer should still
+            # lose trust over time.
+            self.router.record_outcome(route, success=result.success, quality=quality.score)
         return ExecutionOutcome(
             output=result.output,
             tool_name=tool.name,
             success=result.success,
             latency_ms=latency_ms,
             metadata=result.metadata,
+            quality=quality.score,
+            quality_reason=quality.reason,
         )

@@ -34,6 +34,7 @@ class MetricsCollector:
         self._latency_sum = 0.0
         self._cost_sum = 0.0
         self._baseline_cost_sum = 0.0
+        self._quality_sum = 0.0
         self._by_model: Counter[str] = Counter()
 
     def record(
@@ -47,10 +48,12 @@ class MetricsCollector:
         cost: float = 0.0,
         baseline_cost: float | None = None,
         model: str | None = None,
+        quality: float = 1.0,
     ) -> None:
         with self._lock:
             self._total += 1
             self._successes += int(success)
+            self._quality_sum += quality
             self._by_route[route] += 1
             self._by_category[category] += 1
             self._by_language[language] += 1
@@ -75,6 +78,10 @@ class MetricsCollector:
                 "requests": {
                     "total": total,
                     "success_rate": round(self._successes / total, 4),
+                    # Average answer quality (0..1) from the server-side proxy —
+                    # reported next to success and savings so "cheaper" can
+                    # never be mistaken for "cheaper by answering worse".
+                    "avg_quality": round(self._quality_sum / total, 4),
                 },
                 "routes": {
                     route: {"count": count, "share": round(count / total, 4)}

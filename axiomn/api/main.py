@@ -195,6 +195,10 @@ class IntentResponse(BaseModel):
     explanation: dict
     result: str
     execution_time_ms: float
+    # Measured quality of the answer (0..1) and why — the other half of
+    # "cheaper without visible loss". This is what the Router learns from.
+    quality: float
+    quality_reason: str
     action: ActionResponse
 
 
@@ -254,6 +258,7 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
         cost=cost,
         baseline_cost=baseline_cost,
         model=outcome.metadata.get("model"),
+        quality=outcome.quality,
     )
     # The decision as a tamper-evident, auditable record — the AXIOMN -> SIOS
     # edge. The user's text is hashed, never stored (RGPD); the event carries
@@ -270,6 +275,7 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
             cost=cost,
             baseline_cost=baseline_cost,
             latency_ms=outcome.latency_ms,
+            quality=outcome.quality,
             model=outcome.metadata.get("model"),
             model_reason=outcome.metadata.get("selection_reason"),
             proof=outcome.metadata.get("verity"),
@@ -297,6 +303,8 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
         ),
         result=outcome.output,
         execution_time_ms=round(outcome.latency_ms, 2),
+        quality=outcome.quality,
+        quality_reason=outcome.quality_reason,
         action=ActionResponse(type=action.type.value, payload=action.payload),
     )
 

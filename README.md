@@ -179,6 +179,29 @@ cost `tradeoff` against the flagship baseline. It reframes the product from
 }
 ```
 
+### The closed loop: measured quality, not asserted
+
+"Cheaper" only means something next to "same quality" — otherwise you're just
+answering worse for less. So every answer is scored by a cheap, deterministic
+**quality proxy** (`axiomn/quality.py`, 0–1 + a reason): it catches empty
+answers, placeholder/stub output that isn't a real answer, provider failures,
+and unverified sandbox runs — no extra model call, no latency.
+
+That quality feeds two places, closing the loop *decision → result → measure →
+correction*:
+
+- **The Router's trust score** learns from quality, not a bare success flag. A
+  route that "succeeds" by returning a stub **loses trust** and gets chosen less
+  over time — the system self-corrects away from bad answers.
+- **`GET /v1/metrics`** reports `avg_quality` right next to `success_rate` and
+  `savings`, so cost and quality are always read together. Each `/v1/intent`
+  response also carries its own `quality` + `quality_reason`.
+
+This is deliberately a proxy, not a judge model — the transparent shape a
+learned evaluator would later slot into behind the same `assess_quality`
+contract. It's what turns *"X% cheaper"* into *"X% cheaper **and** quality held
+at Y"* — measured, on your own traffic.
+
 A request that escalates to a human (e.g. `route == "human_queue"`) gets
 `"action": {"type": "await_human", ...}` instead — with a real `ticket_id`
 and `status_url` in the payload. The client polls `GET /queue/{ticket_id}`
