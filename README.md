@@ -129,6 +129,9 @@ vs. cloud vs. human), success rate, and estimated cost per request.
   "difficulty": 1,
   "confidence": 0.8,
   "ambiguity": 0.0,
+  "value": 0.165,
+  "demand": 1,
+  "signals": { "reasoning": 0.0, "creativity": 0.0, "knowledge": 0.3, "stakes": 0.0, "value": 0.165 },
   "route": "local_ai",
   "tool": "local_heuristic",
   "result": "[local] learn answer for: Explique-moi comment fonctionnent trous noirs",
@@ -136,6 +139,26 @@ vs. cloud vs. human), success rate, and estimated cost per request.
   "action": { "type": "voice_reply", "payload": { "text": "[local] learn answer for: ..." } }
 }
 ```
+
+### Routing on value, not just difficulty
+
+AXIOMN doesn't only ask *"is this hard?"* — it asks *"how much does getting
+this right matter?"* Each request is scored on independent **signals**
+(`reasoning`, `creativity`, `knowledge`, `stakes`) that combine into an expected
+`value` (0–1). The router routes on **`demand = max(difficulty, value·10)`**, so
+a short but high-stakes request earns a strong model even when its word count
+looks trivial:
+
+| Request | difficulty | value | demand → route |
+|---|---|---|---|
+| "Quelle est la capitale de l'Espagne ?" | 1 | 0.17 | 1 → `local_ai` |
+| "Construis-moi un business rentable basé sur l'IA" | 1 | 0.82 | 8 → `cloud_ai` |
+
+Both are one line; only the second is worth spending real intelligence on. The
+`signals`/`value`/`demand` fields ship in every response, so the decision is
+inspectable — *"this question merits a lot of intelligence"* is a number, not a
+slogan. The scoring is a transparent, tunable heuristic (the same shape a
+learned policy would later fit into), not a black box.
 
 A request that escalates to a human (e.g. `route == "human_queue"`) gets
 `"action": {"type": "await_human", ...}` instead — with a real `ticket_id`

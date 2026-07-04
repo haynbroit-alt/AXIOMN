@@ -177,6 +177,14 @@ class IntentResponse(BaseModel):
     difficulty: int
     confidence: float
     ambiguity: float
+    # Why the request was routed the way it was: `value` is the expected value
+    # of a strong answer (0..1), `signals` its component scores, and `demand`
+    # the capability level it earned — max(difficulty, value·10). This is what
+    # makes "this question merits a lot of intelligence" an inspectable number,
+    # not a slogan.
+    value: float
+    demand: int
+    signals: dict
     route: str
     tool: str
     model: str | None = None  # which model the Gateway chose, when cloud-routed
@@ -270,6 +278,9 @@ def handle_intent(payload: IntentRequest) -> IntentResponse:
         difficulty=intent.difficulty,
         confidence=intent.confidence,
         ambiguity=intent.ambiguity,
+        value=intent.value,
+        demand=router.demand(intent),
+        signals=intent.signals.as_dict(),
         route=route.value,
         tool=outcome.tool_name,
         model=outcome.metadata.get("model"),

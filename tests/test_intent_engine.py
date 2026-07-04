@@ -1,6 +1,22 @@
 from axiomn.intent.classifiers import Classification
 from axiomn.intent.engine import IntentEngine
 from axiomn.intent.schema import IntentCategory
+from axiomn.router.router import Route, Router
+
+
+def test_short_high_stakes_request_routes_up_end_to_end():
+    """The field regression: 'construis-moi un projet argent' used to score
+    difficulty 1/10 and go to the cheapest model. It should now earn a strong
+    model on expected value, while a trivial lookup still stays local."""
+    engine, router = IntentEngine(), Router()
+
+    money = engine.classify("Construis-moi un business rentable basé sur l'IA")
+    assert money.value >= 0.6
+    assert router.route(money) == Route.CLOUD_AI
+
+    trivial = engine.classify("Quelle est la capitale de l'Espagne ?")
+    assert trivial.value <= 0.35
+    assert router.route(trivial) == Route.LOCAL_AI
 
 
 def test_classifies_learn_intent():

@@ -10,6 +10,7 @@ from langdetect import LangDetectException, detect
 
 from .classifiers import HeuristicIntentClassifier, IntentClassifier
 from .schema import Intent
+from .signals import analyze_signals
 
 _COMPLEXITY_MARKERS = [
     "prove", "architecture", "optimize", "research", "distributed system",
@@ -37,6 +38,10 @@ class IntentEngine:
             difficulty=self._estimate_difficulty(normalized),
             confidence=classification.confidence,
             ambiguity=classification.ambiguity,
+            # How much intelligence the request deserves, scored independently
+            # of textual difficulty — this is what lets a short but high-stakes
+            # request out-rank its word count (see intent/signals.py).
+            signals=analyze_signals(normalized, classification.category),
         )
 
     def _estimate_difficulty(self, normalized: str) -> int:
