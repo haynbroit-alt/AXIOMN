@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from axiomn.intent.schema import Intent, IntentCategory
@@ -82,3 +84,55 @@ def test_handler_enqueues_a_real_ticket_and_exposes_its_id():
     ticket_id = result.metadata["ticket_id"]
     assert queue.get(ticket_id).status is TicketStatus.PENDING
     assert "Queued" in result.output
+
+
+# --- TTL auto-expiry: a ticket nobody answers must still resolve eventually ---
+
+
+def test_ticket_auto_resolves_once_ttl_elapses():
+    queue = HumanQueue(ttl_seconds=0.01)
+    ticket = queue.enqueue(_intent())
+
+    time.sleep(0.02)
+    expired = queue.get(ticket.id)
+
+    assert expired.status is TicketStatus.ANSWERED
+    assert expired.timed_out is True
+    assert expired.answer is not None
+    assert "timed out" in expired.answer.lower()
+
+
+def test_expired_ticket_no_longer_appears_in_pending():
+    queue = HumanQueue(ttl_seconds=0.01)
+    queue.enqueue(_intent())
+    time.sleep(0.02)
+
+    assert queue.pending() == []
+
+
+def test_answering_an_already_expired_ticket_raises_already_answered():
+    queue = HumanQueue(ttl_seconds=0.01)
+    ticket = queue.enqueue(_intent())
+    time.sleep(0.02)
+
+    with pytest.raises(TicketAlreadyAnswered):
+        queue.answer(ticket.id, "too late, but I tried")
+    # The auto-timeout answer stands — a late human answer can't overwrite it.
+    assert queue.get(ticket.id).timed_out is True
+
+
+def test_ttl_none_disables_expiry_entirely():
+    queue = HumanQueue(ttl_seconds=None)
+    ticket = queue.enqueue(_intent())
+    time.sleep(0.02)
+
+    assert queue.get(ticket.id).status is TicketStatus.PENDING
+
+
+def test_default_ttl_does_not_expire_a_freshly_created_ticket():
+    # The out-of-the-box default (DEFAULT_TTL_SECONDS, minutes-scale) must
+    # not fire on tickets answered within a normal test/request timeframe.
+    queue = HumanQueue()
+    ticket = queue.enqueue(_intent())
+
+    assert queue.get(ticket.id).status is TicketStatus.PENDING

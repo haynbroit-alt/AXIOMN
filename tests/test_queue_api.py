@@ -2,6 +2,8 @@
 human, the client gets a ticket, an operator answers it, and the client's
 poll returns the human's answer. This is the guarantee that `await_human`
 now points at a real delivery mechanism, not a dead end."""
+import time
+
 from fastapi.testclient import TestClient
 
 from axiomn.api.main import app
@@ -72,3 +74,28 @@ def test_answering_twice_returns_409():
     assert second.status_code == 409
     # The first answer stands.
     assert client.get(f"/queue/{ticket_id}").json()["answer"] == "first"
+
+
+def test_ticket_auto_resolves_via_the_api_when_no_human_answers_in_time():
+    # No operator ever staffs the queue in this scenario — the client must
+    # still get a terminal answer instead of polling "pending" forever.
+    import axiomn.api.main as main_module
+
+    original_ttl = main_module.human_queue._ttl_seconds
+    main_module.human_queue._ttl_seconds = 0.01
+    try:
+        ticket_id = _escalate()["action"]["payload"]["ticket_id"]
+        time.sleep(0.02)
+
+        ticket = client.get(f"/queue/{ticket_id}").json()
+        assert ticket["status"] == "answered"
+        assert ticket["timed_out"] is True
+        assert "timed out" in ticket["answer"].lower()
+
+        # It's no longer on the operator's worklist, and a late human answer
+        # is rejected — the timeout answer stands.
+        assert ticket_id not in [t["ticket_id"] for t in client.get("/queue").json()]
+        late = client.post(f"/queue/{ticket_id}/answer", json={"text": "too late"})
+        assert late.status_code == 409
+    finally:
+        main_module.human_queue._ttl_seconds = original_ttl

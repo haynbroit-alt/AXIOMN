@@ -79,10 +79,10 @@ contract:
 | `axiomn/intent/embedding.py` | `SemanticIntentClassifier`: nearest-neighbor in embedding space — matches by meaning, works across languages without translation (optional, see below); ambiguity comes from the gap between the best and second-best category's similarity |
 | `axiomn/router/router.py` | `Router.route(intent) -> Route`, a cost/latency/trust/ambiguity-scoring policy over `RouteProfile`s; `record_outcome()` updates trust from real results |
 | `axiomn/models/tools.py` | `ToolRegistry`: named, tagged tools per route, so a route isn't tied to exactly one backend |
-| `axiomn/queue/engine.py` | `HumanQueue`: the async half of the human route — an escalated request becomes a `Ticket`, a human answers it out-of-band, the client polls `/queue/{id}` for the answer |
+| `axiomn/queue/engine.py` | `HumanQueue`: the async half of the human route — an escalated request becomes a `Ticket`, a human answers it out-of-band, the client polls `/queue/{id}` for the answer. A ticket nobody answers still auto-resolves once its TTL elapses, so `await_human` never becomes a permanent dead end (see `AXIOMN_QUEUE_TTL_SECONDS` below) |
 | `axiomn/execution/engine.py` | `ExecutionEngine.execute(route, intent) -> ExecutionOutcome`, picks a tool, times it, closes the feedback loop to the Router |
 | `axiomn/action/engine.py` | `ActionEngine.decide(intent, route, result_text) -> Action`: `voice_reply`, `copy_to_clipboard`, `open_url`, `schedule_task`, or `await_human` (always wins when `route == human_queue`, regardless of category — the async escalation isn't done yet) |
-| `axiomn/api/main.py` | FastAPI app wiring the pipeline behind `POST /intent`, plus a static demo at `/ui/` |
+| `axiomn/api/main.py` | FastAPI app wiring the pipeline behind `POST /intent`, plus a static demo at `/ui/`. A top-level exception handler guarantees a structured, actionable JSON body even if something inside the pipeline breaks — never a bare, undocumented crash |
 | `sdk/axiomn_sdk/` | Standalone Python client package (`pip install -e sdk/`) — depends only on `httpx`, not on the server |
 
 Every extension point (`IntentClassifier`, `ToolHandler`, `RouteProfile`)
@@ -216,6 +216,13 @@ tickets at `GET /queue` and resolves one with
 this automatically: the ⏳ placeholder is replaced by the human's answer
 the moment it arrives, without a reload.
 
+**Every question gets an answer, even an unstaffed one.** If no operator
+answers a ticket before its TTL elapses (`AXIOMN_QUEUE_TTL_SECONDS`,
+5 minutes by default), the next poll of `GET /queue/{ticket_id}`
+auto-resolves it into a clear timeout answer (`"timed_out": true`) instead
+of leaving the client polling `"pending"` forever — a stale ticket is a
+broken promise, not an acceptable steady state.
+
 ### Estimate your savings on your own traffic
 
 Before integrating — or spending a cent — see what routing would save you.
@@ -305,6 +312,7 @@ need zero setup. Set these before exposing AXIOMN beyond your machine:
 | `AXIOMN_REDIS_URL` | unset (in-memory) | Shared state for the rate limiter and the intelligence budget. Unset → in-memory (correct for a single process). Set (e.g. `redis://…`) → counts are shared across every instance, so limits and budget hold when you run more than one machine. Fail-open: an unreachable Redis degrades to in-memory. Requires `pip install redis`. |
 | `AXIOMN_BUDGET_PER_MINUTE` | `0` (off) | The **intelligence budget** — a per-client spend cap (in cost units) per 60s window. When a request would exceed it, AXIOMN routes it **down to the free local tier** instead of failing, and says so in the response's `budget` field. The constitution's first rule: never exceed the owner's budget; inside it, spend where it matters. |
 | `AXIOMN_ROUTER_STATE_PATH` | unset (no persistence) | JSON file where the Router's trust scores are saved on every `record_outcome()` and reloaded at startup. Unset means every restart forgets what the Router has learned. |
+| `AXIOMN_QUEUE_TTL_SECONDS` | `300` | How long a `human_queue` ticket may sit unanswered before it auto-resolves with a clear timeout answer instead of staying `"pending"` forever. Set to `0` (or negative) to disable expiry entirely — for a deployment with a reliably staffed queue where a stale ticket should keep waiting. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` | unset (simulated) | Real provider clients for the Gateway. Without them, cloud answers are explicitly labeled `[simulated:...]`. |
 | `AXIOMN_LOCAL_URL`, `AXIOMN_LOCAL_MODEL` | unset (stub tier) | Point the cheap **local tier** at a real, OpenAI-compatible model — Ollama, llama.cpp's server, vLLM, LM Studio (e.g. `http://localhost:11434`). The model runs where you host it: **free per call, data never leaves for the cloud.** Unset → the tier returns a labeled heuristic stub that the quality proxy scores low (never counted as a real answer). This is what makes "cheaper *without loss*" provable. Fail-open: an unreachable model degrades to a labeled result, never breaks a request. |
 | `AXIOMN_REQUIRE_REAL_PROVIDER` | `0` (off) | Production guardrail. When `1`, the app **refuses to start** unless every provider is a real client — so a deploy that forgot a key fails fast instead of silently serving `[simulated:...]`. `GET /health` always reports the current `provider_mode` (`real`/`simulated`/`mixed`). |
