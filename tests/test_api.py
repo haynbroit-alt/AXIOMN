@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from axiomn.api.main import app
+from axiomn.api.main import DEFAULT_TTL_SECONDS, _queue_ttl_seconds, app
 
 client = TestClient(app)
 
@@ -155,3 +155,46 @@ def test_intent_endpoint_enforces_rate_limit():
         assert response.status_code == 429
     finally:
         main_module.rate_limiter.max_requests = original_max
+
+
+# --- Every question has an answer: unhandled errors and queue TTL wiring ---
+
+
+def test_unhandled_pipeline_error_still_returns_a_structured_answer(monkeypatch):
+    import axiomn.api.main as main_module
+
+    def _boom(_text):
+        raise RuntimeError("simulated pipeline crash")
+
+    monkeypatch.setattr(main_module.intent_engine, "classify", _boom)
+    # Starlette's ServerErrorMiddleware always re-raises the original exception
+    # after invoking a registered handler, specifically so TestClient can
+    # surface it for debugging (raise_server_exceptions=True by default) — a
+    # real HTTP client only ever sees the handler's response. Opt out here to
+    # assert on that actual response instead of the re-raised exception.
+    no_raise_client = TestClient(app, raise_server_exceptions=False)
+    response = no_raise_client.post("/v1/intent", json={"text": "hello"})
+
+    # Never a bare, undocumented crash: still a clear, actionable JSON body.
+    assert response.status_code == 500
+    data = response.json()
+    assert data["error"] == "internal_error"
+    assert data["message"]
+    assert response.headers["X-Request-ID"]
+
+
+def test_queue_ttl_seconds_defaults_when_unset(monkeypatch):
+    monkeypatch.delenv("AXIOMN_QUEUE_TTL_SECONDS", raising=False)
+    assert _queue_ttl_seconds() == DEFAULT_TTL_SECONDS
+
+
+def test_queue_ttl_seconds_disabled_by_zero_or_negative(monkeypatch):
+    monkeypatch.setenv("AXIOMN_QUEUE_TTL_SECONDS", "0")
+    assert _queue_ttl_seconds() is None
+    monkeypatch.setenv("AXIOMN_QUEUE_TTL_SECONDS", "-5")
+    assert _queue_ttl_seconds() is None
+
+
+def test_queue_ttl_seconds_respects_env_override(monkeypatch):
+    monkeypatch.setenv("AXIOMN_QUEUE_TTL_SECONDS", "42")
+    assert _queue_ttl_seconds() == 42.0

@@ -16,7 +16,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from typing import Annotated
 
@@ -39,6 +39,7 @@ from ..metrics.collector import MetricsCollector
 from ..models.tools import default_registry
 from ..sandbox import build_verity_handler
 from ..queue.engine import (
+    DEFAULT_TTL_SECONDS,
     HumanQueue,
     Ticket,
     TicketAlreadyAnswered,
@@ -56,7 +57,21 @@ app = FastAPI(
 )
 
 router = Router(persistence_path=os.environ.get("AXIOMN_ROUTER_STATE_PATH"))
-human_queue = HumanQueue()
+
+
+def _queue_ttl_seconds() -> float | None:
+    # A ticket nobody answers must still resolve eventually ("every question
+    # should have an answer") — 0/negative disables expiry for deployments
+    # with a reliably staffed queue (or for tests that want tickets to stay
+    # pending indefinitely).
+    raw = os.environ.get("AXIOMN_QUEUE_TTL_SECONDS")
+    if raw is None:
+        return DEFAULT_TTL_SECONDS
+    value = float(raw)
+    return value if value > 0 else None
+
+
+human_queue = HumanQueue(ttl_seconds=_queue_ttl_seconds())
 gateway = build_default_gateway()
 # When the keyword heuristic can't read a request (UNKNOWN / near-tie), a
 # cheap Gateway model classifies it by meaning instead of dead-ending it.
@@ -173,6 +188,44 @@ async def request_context(request: Request, call_next):
             "latency_ms": elapsed_ms,
         },
     )
+    return response
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """The last line of the "every question has an answer" guarantee.
+
+    Anything that escapes the pipeline (a bug in a plugin, a budget/metrics/
+    audit failure, ...) would otherwise surface as a bare, undocumented 500.
+    Instead the client always gets a structured, actionable body — including
+    the request id already bound above — even when AXIOMN itself is broken.
+
+    This runs inside Starlette's ServerErrorMiddleware, which wraps
+    `request_context` from the outside — so that middleware's own
+    `response.headers["X-Request-ID"] = rid` line never executes on this
+    path (call_next raised instead of returning), and by the time this
+    handler runs, `request_context`'s `finally: request_id_var.reset(token)`
+    has already restored the contextvar to its pre-request value. So the id
+    is re-derived here the same way `request_context` derived it originally,
+    rather than trusted from the (already-reset) contextvar.
+    """
+    logger.exception(
+        "request.unhandled_error",
+        extra={"method": request.method, "path": request.url.path},
+    )
+    rid = request.headers.get("x-request-id") or request_id_var.get() or uuid.uuid4().hex
+    response = JSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_error",
+            "message": (
+                "AXIOMN could not complete this request due to an internal "
+                "error. Please retry; if this persists, it's a bug."
+            ),
+            "request_id": rid,
+        },
+    )
+    response.headers["X-Request-ID"] = rid
     return response
 
 
@@ -421,6 +474,7 @@ class TicketResponse(BaseModel):
     answer: str | None
     created_at: float
     answered_at: float | None
+    timed_out: bool = False
 
 
 def _ticket_response(ticket: Ticket) -> TicketResponse:
@@ -433,6 +487,7 @@ def _ticket_response(ticket: Ticket) -> TicketResponse:
         answer=ticket.answer,
         created_at=ticket.created_at,
         answered_at=ticket.answered_at,
+        timed_out=ticket.timed_out,
     )
 
 
