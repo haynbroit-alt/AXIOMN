@@ -199,12 +199,22 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     audit failure, ...) would otherwise surface as a bare, undocumented 500.
     Instead the client always gets a structured, actionable body — including
     the request id already bound above — even when AXIOMN itself is broken.
+
+    This runs inside Starlette's ServerErrorMiddleware, which wraps
+    `request_context` from the outside — so that middleware's own
+    `response.headers["X-Request-ID"] = rid` line never executes on this
+    path (call_next raised instead of returning), and by the time this
+    handler runs, `request_context`'s `finally: request_id_var.reset(token)`
+    has already restored the contextvar to its pre-request value. So the id
+    is re-derived here the same way `request_context` derived it originally,
+    rather than trusted from the (already-reset) contextvar.
     """
     logger.exception(
         "request.unhandled_error",
         extra={"method": request.method, "path": request.url.path},
     )
-    return JSONResponse(
+    rid = request.headers.get("x-request-id") or request_id_var.get() or uuid.uuid4().hex
+    response = JSONResponse(
         status_code=500,
         content={
             "error": "internal_error",
@@ -212,9 +222,11 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
                 "AXIOMN could not complete this request due to an internal "
                 "error. Please retry; if this persists, it's a bug."
             ),
-            "request_id": request_id_var.get(),
+            "request_id": rid,
         },
     )
+    response.headers["X-Request-ID"] = rid
+    return response
 
 
 _static_dir = Path(__file__).parent / "static"
