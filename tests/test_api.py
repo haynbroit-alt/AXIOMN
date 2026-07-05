@@ -167,7 +167,13 @@ def test_unhandled_pipeline_error_still_returns_a_structured_answer(monkeypatch)
         raise RuntimeError("simulated pipeline crash")
 
     monkeypatch.setattr(main_module.intent_engine, "classify", _boom)
-    response = client.post("/v1/intent", json={"text": "hello"})
+    # Starlette's ServerErrorMiddleware always re-raises the original exception
+    # after invoking a registered handler, specifically so TestClient can
+    # surface it for debugging (raise_server_exceptions=True by default) — a
+    # real HTTP client only ever sees the handler's response. Opt out here to
+    # assert on that actual response instead of the re-raised exception.
+    no_raise_client = TestClient(app, raise_server_exceptions=False)
+    response = no_raise_client.post("/v1/intent", json={"text": "hello"})
 
     # Never a bare, undocumented crash: still a clear, actionable JSON body.
     assert response.status_code == 500
