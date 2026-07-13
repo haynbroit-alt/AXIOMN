@@ -71,6 +71,9 @@ def test_intent_endpoint_returns_full_pipeline_result():
     assert 0.0 <= data["ambiguity"] <= 1.0
     assert data["action"]["type"] == "voice_reply"
     assert data["action"]["payload"]["text"] == data["result"]
+    # Per-request cost is exposed (for a UI/client), and never above its baseline.
+    assert data["cost"] <= data["baseline_cost"]
+    assert data["quality"] >= 0.0
 
 
 def test_connect_intent_escalates_to_human_and_yields_await_human_action():

@@ -278,6 +278,11 @@ class IntentResponse(BaseModel):
     # "cheaper without visible loss". This is what the Router learns from.
     quality: float
     quality_reason: str
+    # The actual cost of this request, and what it would have cost with no
+    # routing (everything to the flagship) — the per-request savings, exposed so
+    # a client/UI can show the number, not just the aggregate at /v1/metrics.
+    cost: float
+    baseline_cost: float
     action: ActionResponse
 
 
@@ -393,6 +398,8 @@ def handle_intent(
         execution_time_ms=round(outcome.latency_ms, 2),
         quality=outcome.quality,
         quality_reason=outcome.quality_reason,
+        cost=round(cost, 6),
+        baseline_cost=round(baseline_cost, 6),
         action=ActionResponse(type=action.type.value, payload=action.payload),
     )
 
